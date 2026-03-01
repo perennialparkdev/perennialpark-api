@@ -221,14 +221,49 @@ ownersCtrl.login = async (req, res) => {
       });
     }
 
+    const uid = data.localId;
+    const [husband, wife] = await Promise.all([
+      OwnerHusbandUser.findOne({ firebase_uid: uid }),
+      OwnerWifeUser.findOne({ firebase_uid: uid }),
+    ]);
+    const owner = husband || wife;
+    let ownerData = null;
+    let unitData = null;
+    if (owner) {
+      if (husband) {
+        ownerData = {
+          ownerType: 'husband',
+          husband_first: husband.husband_first,
+          husband_email: husband.husband_email,
+          husband_phone: husband.husband_phone,
+          last_name: husband.last_name,
+        };
+      } else {
+        ownerData = {
+          ownerType: 'wife',
+          wife_first: wife.wife_first,
+          wife_email: wife.wife_email,
+          last_name: wife.last_name,
+        };
+      }
+      if (owner.unitId) {
+        const unit = await Unit.findById(owner.unitId).select('unit_number address').lean();
+        if (unit) {
+          unitData = { unit_number: unit.unit_number, address: unit.address };
+        }
+      }
+    }
+
     res.status(200).json({
       success: true,
       message: 'Signed in successfully',
       data: {
         token: data.idToken,
         expiresIn: data.expiresIn,
-        uid: data.localId,
+        uid,
         email: data.email,
+        owner: ownerData,
+        unit: unitData,
       },
     });
   } catch (error) {

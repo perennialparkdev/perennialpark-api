@@ -28,7 +28,7 @@
 |--------|------|-------------|------|
 | `POST` | `/api/owners/check-unit` | Validar acceso por número de unidad (usuario/contrasena = unit_number). Si la unidad ya tiene owner(s), no puede ingresar. | No |
 | `POST` | `/api/owners/signup` | Registrar usuario en Firebase Auth (email + contraseña). Devuelve `email` y `uid`. | No |
-| `POST` | `/api/owners/login` | Iniciar sesión con email y contraseña. Devuelve `token` (idToken) para usar en `Authorization: Bearer`. | No |
+| `POST` | `/api/owners/login` | Iniciar sesión con email y contraseña. Devuelve `token` (idToken), `owner` (datos husband/wife) y `unit` (unit_number, address) si está registrado como owner. | No |
 | `POST` | `/api/owners/complete-profile` | Formulario primario: unit, husband, wife, children. El email del token debe coincidir con husband_email o wife_email. Crea owner activo (status 1) y opcionalmente pendiente (status -1) con invitación por correo. | Sí (Bearer) |
 | `POST` | `/api/owners/invitation/validate` | Valida email + token de invitación; devuelve `missingFields` para el formulario dinámico del co-propietario. | No |
 | `POST` | `/api/owners/invitation/complete` | Completa perfil del owner pendiente: actualiza campos, crea usuario en Firebase y activa (status 1). | No |
@@ -209,7 +209,7 @@ Firebase Admin credentials not configured or invalid.
 - **Ruta**: `/api/owners/login`
 - **Content-Type**: `application/json`
 
-Autentica con Firebase (email + contraseña) y devuelve un **idToken**. El cliente debe guardar ese `token` y enviarlo en el header `Authorization: Bearer <token>` en todas las rutas protegidas. El middleware `verifyFirebaseToken` validará el token y dejará `req.user = { uid, email }`.
+Autentica con Firebase (email + contraseña) y devuelve un **idToken**. El cliente debe guardar ese `token` y enviarlo en el header `Authorization: Bearer <token>` en todas las rutas protegidas. El middleware `verifyFirebaseToken` validará el token y dejará `req.user = { uid, email }`. Además, la API busca si el usuario está registrado como owner (OwnerHusbandUser u OwnerWifeUser) por `firebase_uid` y devuelve en `data.owner` los datos del owner (según sea husband o wife) y en `data.unit` los datos de la unidad asociada (`unit_number`, `address`). Si no existe registro de owner, `owner` y `unit` serán `null`.
 
 #### Request body
 
@@ -235,10 +235,23 @@ Autentica con Firebase (email + contraseña) y devuelve un **idToken**. El clien
     "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
     "expiresIn": "3600",
     "uid": "abc123firebaseUid456",
-    "email": "propietario@ejemplo.com"
+    "email": "propietario@ejemplo.com",
+    "owner": {
+      "ownerType": "husband",
+      "husband_first": "John",
+      "husband_email": "propietario@ejemplo.com",
+      "husband_phone": "+1 555 123 4567",
+      "last_name": "Smith"
+    },
+    "unit": {
+      "unit_number": "101",
+      "address": "123 Main Street"
+    }
   }
 }
 ```
+
+Si el usuario es **wife**, `owner` tendrá `ownerType: "wife"`, `wife_first`, `wife_email` y `last_name`. Si el usuario no está registrado como owner en MongoDB, `owner` y `unit` serán `null`.
 
 | Campo en `data` | Descripción |
 |-----------------|-------------|
@@ -246,6 +259,8 @@ Autentica con Firebase (email + contraseña) y devuelve un **idToken**. El clien
 | `expiresIn` | Segundos hasta que el token expire (ej. 3600 = 1 hora). |
 | `uid` | Identificador del usuario en Firebase. |
 | `email` | Correo del usuario. |
+| `owner` | Objeto con datos del owner si está registrado en MongoDB: `ownerType` (`"husband"` o `"wife"`), y según el tipo: husband → `husband_first`, `husband_email`, `husband_phone`, `last_name`; wife → `wife_first`, `wife_email`, `last_name`. `null` si no es owner. |
+| `unit` | Objeto con `unit_number` y `address` de la unidad asociada al owner (`unitId`). `null` si no hay owner o no tiene unidad. |
 
 #### Response 400 — Validation
 
@@ -535,7 +550,7 @@ El co-propietario envía **email**, **token** y los campos que faltan (incluida 
 - **Controlador**: `src/controllers/owners.controller.js`:
   - **checkUnitAccess**: valida `usuario`/`contrasena` = unit_number, busca Unit y owners; 200 si puede ingresar, 403 si ya tiene owners.
   - **signUp**: crea usuario en Firebase Auth; devuelve email y uid; 409 si el correo ya existe.
-  - **login**: Firebase REST API `signInWithPassword`; devuelve `token`, `expiresIn`, `uid`, `email`.
+  - **login**: Firebase REST API `signInWithPassword`; devuelve `token`, `expiresIn`, `uid`, `email`, `owner` (datos del owner husband/wife si existe) y `unit` (unit_number, address).
   - **completeProfile**: exige que `req.user.email` coincida con husband_email o wife_email; crea Unit (o la busca), owner activo (status 1), opcionalmente owner pendiente (status -1) con `invitationToken` y envío de correo (Nodemailer), y Children.
   - **validateInvitation**: busca owner por email + invitationToken; devuelve `missingFields` para formulario dinámico.
   - **completeInvitation**: actualiza owner con datos enviados, crea usuario en Firebase (email + password), pone status 1 y invalida invitationToken.
@@ -625,6 +640,8 @@ const { data } = await axios.post(
 if (data.success) {
   const token = data.data.token;  // idToken
   const expiresIn = data.data.expiresIn;
+  const owner = data.data.owner;  // { ownerType, husband_*/wife_*, last_name } o null
+  const unit = data.data.unit;    // { unit_number, address } o null
 
   // Guardar token (ej. en estado, localStorage o memoria) para enviarlo en cada petición protegida
   localStorage.setItem('token', token);
@@ -748,7 +765,7 @@ if (data.success) {
 | **Módulo Owners** | Rutas en `src/routes/owners.route.js`, controlador en `src/controllers/owners.controller.js`. |
 | **POST /api/owners/check-unit** | Validación de acceso por `unit_number` enviado como `usuario` y `contrasena`; consulta a Unit, OwnerHusbandUser y OwnerWifeUser; 200 si puede ingresar, 403 si ya tiene owners, 404 si la unidad no existe. |
 | **POST /api/owners/signup** | Registro en Firebase Auth (email + contraseña). Devuelve `email` y `uid`. 201 creado, 409 correo ya existe, 400 validación, 503 Firebase no disponible. |
-| **POST /api/owners/login** | Login vía Firebase REST API (signInWithPassword). Devuelve `token` (idToken), `expiresIn`, `uid`, `email`. El token se envía en `Authorization: Bearer <token>` para rutas protegidas con `verifyFirebaseToken`. |
+| **POST /api/owners/login** | Login vía Firebase REST API (signInWithPassword). Devuelve `token` (idToken), `expiresIn`, `uid`, `email`, `owner` (datos husband/wife si está registrado) y `unit` (unit_number, address). El token se envía en `Authorization: Bearer <token>` para rutas protegidas con `verifyFirebaseToken`. |
 | **POST /api/owners/complete-profile** | Formulario primario (unit, husband, wife, children). Requiere token. El email del token debe ser husband_email o wife_email. Crea Unit, owner activo (status 1), opcionalmente owner pendiente (status -1) con invitationToken y correo de invitación (Nodemailer), y Children. |
 | **POST /api/owners/invitation/validate** | Valida email + token; devuelve missingFields para formulario dinámico del co-propietario. Público. |
 | **POST /api/owners/invitation/complete** | Completa perfil del owner pendiente: actualiza campos, crea usuario en Firebase, activa (status 1), invalida invitationToken. Público. |
