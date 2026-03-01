@@ -75,12 +75,87 @@ unitsCtrl.create = async (req, res) => {
   }
 };
 
+/**
+ * List units with linked owner data (husband/wife by unitId) and children.
+ * Priority: husband; if no husband, wife. If no owners, check PreliminarOwner and set message.
+ */
 unitsCtrl.list = async (req, res) => {
   try {
     const status = req.query.status != null ? Number(req.query.status) : null;
     const filter = status != null ? { status } : {};
-    const units = await Unit.find(filter).sort({ createdAt: -1 });
-    res.status(200).json({ success: true, data: units });
+    const units = await Unit.find(filter).sort({ createdAt: -1 }).lean();
+    const unitIds = units.map((u) => u._id);
+
+    const [husbands, wives, preliminars, childrenList] = await Promise.all([
+      OwnerHusbandUser.find({ unitId: { $in: unitIds } }).lean(),
+      OwnerWifeUser.find({ unitId: { $in: unitIds } }).lean(),
+      PreliminarOwner.find({ unitId: { $in: unitIds } }).lean(),
+      Children.find({ unitId: { $in: unitIds } }).lean(),
+    ]);
+
+    const husbandByUnit = new Map(husbands.map((h) => [h.unitId.toString(), h]));
+    const wifeByUnit = new Map(wives.map((w) => [w.unitId.toString(), w]));
+    const preliminarByUnit = new Map(preliminars.map((p) => [p.unitId.toString(), p]));
+    const childrenByUnit = new Map();
+    for (const c of childrenList) {
+      const id = c.unitId?.toString();
+      if (id) {
+        if (!childrenByUnit.has(id)) childrenByUnit.set(id, []);
+        childrenByUnit.get(id).push({
+          name: c.name,
+          age: c.age,
+          genre: c.genre,
+        });
+      }
+    }
+
+    const data = units.map((unit) => {
+      const unitIdStr = unit._id.toString();
+      const husband = husbandByUnit.get(unitIdStr) || null;
+      const wife = wifeByUnit.get(unitIdStr) || null;
+      const preliminarOwner = preliminarByUnit.get(unitIdStr) || null;
+      const children = childrenByUnit.get(unitIdStr) || [];
+
+      const item = { unit };
+
+      if (husband || wife) {
+        item.husband = husband
+          ? {
+              husband_first: husband.husband_first,
+              last_name: husband.last_name,
+              husband_email: husband.husband_email,
+              password: husband.password,
+            }
+          : null;
+        item.wife = wife
+          ? {
+              wife_first: wife.wife_first,
+              last_name: wife.last_name,
+              wife_email: wife.wife_email,
+              password: wife.password,
+            }
+          : null;
+        item.message = null;
+        item.preliminarOwner = null;
+      } else {
+        item.husband = null;
+        item.wife = null;
+        item.preliminarOwner = preliminarOwner
+          ? {
+              husband_phone: preliminarOwner.husband_phone,
+              last_name: preliminarOwner.last_name,
+            }
+          : null;
+        item.message = preliminarOwner
+          ? 'Unit without owners.'
+          : 'No owners, invitees or registered for this unit.';
+      }
+
+      item.children = children;
+      return item;
+    });
+
+    res.status(200).json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

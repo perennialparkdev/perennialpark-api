@@ -27,7 +27,7 @@
 | Método | Ruta | Descripción | Auth |
 |--------|------|-------------|------|
 | `POST` | `/api/units` | Crear unidad y preliminar_owner (body: unit + preliminar_owner). | Sí (Owner Admin) |
-| `GET` | `/api/units` | Listar unidades (opcional `?status=1` o `?status=2`). | Sí (Owner Admin) |
+| `GET` | `/api/units` | Listar unidades con datos vinculados: unit, husband, wife, children, preliminarOwner y message según corresponda (opcional `?status=1` o `?status=2`). | Sí (Owner Admin) |
 | `GET` | `/api/units/:id` | Obtener una unidad por ID. | Sí (Owner Admin) |
 | `PATCH` | `/api/units/:id` | Editar unidad. | Sí (Owner Admin) |
 | `DELETE` | `/api/units/:id` | Eliminar unidad y todos los registros asociados (owners, children, preliminar_owners). | Sí (Owner Admin) |
@@ -144,6 +144,12 @@ Missing or invalid token, or user is not an admin owner.
 - **Ruta**: `/api/units`
 - **Query**: `status` (opcional) — `1` activo, `2` inactivo.
 
+Devuelve un array de objetos. Cada objeto incluye la **unit**, los **owners** vinculados por `unitId` (husband y/o wife con nombre, apellido, email, password), los **children** de esa unidad (name, age, genre) y, si la unidad no tiene owners, el **preliminarOwner** (si existe) y un **message** en inglés.
+
+- **Si la unidad tiene al menos un owner (husband o wife):** `husband` y `wife` contienen los datos o `null`; `message` y `preliminarOwner` son `null`.
+- **Si la unidad no tiene owners:** se consulta PreliminarOwner; si existe, `preliminarOwner` tiene `husband_phone` y `last_name` y `message` es `"Unit without owners."`; si no existe preliminar, `preliminarOwner` es `null` y `message` es `"No owners, invitees or registered for this unit."`
+- **children** es siempre un array (vacío si la unidad no tiene hijos).
+
 #### Response 200
 
 ```json
@@ -151,21 +157,58 @@ Missing or invalid token, or user is not an admin owner.
   "success": true,
   "data": [
     {
-      "_id": "...",
-      "unit_number": "102",
-      "address": "...",
-      "city": "...",
-      "state": "...",
-      "zip": "...",
-      "colony_name": "...",
-      "notes": "...",
-      "status": 1,
-      "createdAt": "...",
-      "updatedAt": "..."
+      "unit": {
+        "_id": "...",
+        "unit_number": "102",
+        "address": "456 Oak Ave",
+        "city": "Brooklyn",
+        "state": "NY",
+        "zip": "11202",
+        "colony_name": "North",
+        "notes": "",
+        "status": 1,
+        "createdAt": "...",
+        "updatedAt": "..."
+      },
+      "husband": {
+        "husband_first": "John",
+        "last_name": "Smith",
+        "husband_email": "john@example.com",
+        "password": "..."
+      },
+      "wife": {
+        "wife_first": "Mary",
+        "last_name": "Smith",
+        "wife_email": "mary@example.com",
+        "password": null
+      },
+      "message": null,
+      "preliminarOwner": null,
+      "children": [
+        { "name": "Emma", "age": 10, "genre": "Girl" },
+        { "name": "James", "age": 7, "genre": "Boy" }
+      ]
+    },
+    {
+      "unit": { "_id": "...", "unit_number": "103", ... },
+      "husband": null,
+      "wife": null,
+      "message": "No owners, invitees or registered for this unit.",
+      "preliminarOwner": null,
+      "children": []
     }
   ]
 }
 ```
+
+| Campo en cada ítem de `data` | Descripción |
+|-----------------------------|-------------|
+| `unit` | Objeto con los datos de la unidad. |
+| `husband` | Objeto con `husband_first`, `last_name`, `husband_email`, `password` o `null` si no hay husband. |
+| `wife` | Objeto con `wife_first`, `last_name`, `wife_email`, `password` o `null` si no hay wife. |
+| `message` | `null` si hay owners; si no hay owners: `"Unit without owners."` (hay preliminar) o `"No owners, invitees or registered for this unit."` (no hay preliminar). |
+| `preliminarOwner` | `null` si hay owners; si no hay owners y existe PreliminarOwner: `{ husband_phone, last_name }`; si no existe: `null`. |
+| `children` | Array de `{ name, age, genre }` vinculados por `unitId`; puede ser `[]`. |
 
 ---
 
@@ -466,6 +509,10 @@ Failed to send email (Nodemailer).
 
 Se crea al crear una unidad y se elimina en cascada al eliminar la unidad.
 
+### Children (en list)
+
+En la respuesta de **GET /api/units**, cada ítem incluye `children`: array de objetos con `name`, `age` y `genre`, vinculados a la unidad por `unitId`. Si la unidad no tiene hijos, `children` es `[]`. Modelo: `src/models/children.model.js`.
+
 ### Rol (colección rol)
 
 | Campo | Tipo | Descripción |
@@ -501,7 +548,7 @@ La unidad queda con sus campos (unit_number, address, etc.) intactos y puede vol
 ## 📘 Guía backend
 
 - **Rutas**: `src/routes/units.route.js` — todas protegidas con `requireOwnerAdmin` (verifyFirebaseToken + verifyOwnerAdmin).
-- **Controlador**: `src/controllers/units.controller.js` — create (Unit + PreliminarOwner), list (con filtro status), getById, update, remove (cascada), activate, anular, **unlink** (elimina owners/children/preliminar, unit intacta), **resetPassword** (nueva contraseña = unit_number en Firebase y MongoDB), **sendInvitation** (reenvío con invitationToken existente, Nodemailer).
+- **Controlador**: `src/controllers/units.controller.js` — create (Unit + PreliminarOwner), **list** (con filtro status; devuelve por cada unidad: unit, husband, wife, children, preliminarOwner y message según corresponda), getById, update, remove (cascada), activate, anular, **unlink** (elimina owners/children/preliminar, unit intacta), **resetPassword** (nueva contraseña = unit_number en Firebase y MongoDB), **sendInvitation** (reenvío con invitationToken existente, Nodemailer).
 - **Middleware**: `src/middlewares/verify-owner-admin.js` — comprueba que el usuario sea OwnerHusbandUser u OwnerWifeUser con `idRol` = ADMIN_ROL_ID (`69a4797d16285f80b89cb60b` o variable de entorno).
 - **Modelos**: Unit (`src/models/unit.model.js`), PreliminarOwner (`src/models/preliminar-owner.model.js`), Rol (`src/models/rol.model.js`). OwnerHusbandUser y OwnerWifeUser tienen `idRol` (ref Rol).
 - **Montaje**: En `app.js`, `app.use('/api/units', unitsRoutes)`.
@@ -551,12 +598,24 @@ if (data.success) {
 
 ### Listar unidades
 
+Cada ítem de `data` incluye `unit`, `husband`, `wife`, `children`, `preliminarOwner` y `message`. Usar `item.unit` para los datos de la unidad, `item.husband` / `item.wife` para owners vinculados y `item.children` para los hijos.
+
 ```javascript
 const config = { headers: { Authorization: `Bearer ${token}` } };
 
-const list = await axios.get(`${API_URL}/api/units`, config);
+const { data } = await axios.get(`${API_URL}/api/units`, config);
 const soloActivas = await axios.get(`${API_URL}/api/units?status=1`, config);
 const soloInactivas = await axios.get(`${API_URL}/api/units?status=2`, config);
+
+// Ejemplo: primer ítem con owners e hijos
+if (data.success && data.data.length) {
+  const first = data.data[0];
+  console.log('Unit:', first.unit.unit_number, first.unit.address);
+  console.log('Husband:', first.husband?.husband_first, first.husband?.husband_email);
+  console.log('Wife:', first.wife?.wife_first, first.wife?.wife_email);
+  console.log('Children:', first.children);
+  if (first.message) console.log('Message:', first.message);
+}
 ```
 
 ### Obtener una unidad
@@ -633,3 +692,4 @@ await axios.post(
 | **PATCH /api/units/:id/unlink** | Desvincular: elimina owners, children y preliminar_owners; la Unit no se modifica (queda huérfana). |
 | **POST /api/units/:id/owners/reset-password** | Body `{ email }`. Nueva contraseña = unit_number; actualiza Firebase (si tiene firebase_uid) y campo password en MongoDB. |
 | **POST /api/units/:id/owners/send-invitation** | Body `{ email }`. Reenvía correo de invitación (inglés, Nodemailer) a owner con status -1 usando su invitationToken existente. |
+| **GET /api/units (list)** | Devuelve array de objetos enriquecidos: cada ítem tiene `unit`, `husband`, `wife`, `children`, `preliminarOwner` y `message`. Si no hay owners, se consulta PreliminarOwner y se devuelve mensaje en inglés. |
