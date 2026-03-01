@@ -137,3 +137,12 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# firebase credentials
+perennialparkapp-firebase-adminsdk-fbsvc-1e7b40a27d.json
+
+# gmail credentials
+contrasena-aplicacion-google.txt
+
+#Documentos varios
+colecciones-excel/
