@@ -7,6 +7,7 @@
 
 const mongoose = require('mongoose');
 
+/** status: 1 = activo, 2 = inactivo */
 const unitSchema = new mongoose.Schema(
   {
     id: { type: String, default: null },
@@ -17,6 +18,7 @@ const unitSchema = new mongoose.Schema(
     zip: { type: String, default: null },
     colony_name: { type: String, default: null },
     notes: { type: String, default: null },
+    status: { type: Number, default: 1 },
     created_by: { type: String, default: null },
     created_by_id: { type: String, default: null },
     is_sample: { type: Boolean, default: false },

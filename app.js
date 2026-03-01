@@ -13,6 +13,7 @@ const { connectDB } = require('./database/database');
 const { initFirebase, getAuth, getInitError } = require('./src/config/firebase');
 const indexRoutes = require('./src/routes/index.route');
 const ownersRoutes = require('./src/routes/owners.route');
+const unitsRoutes = require('./src/routes/units.route');
 
 const app = express();
 
@@ -28,6 +29,7 @@ if (process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID) {
 
 app.use('/api', indexRoutes);
 app.use('/api/owners', ownersRoutes);
+app.use('/api/units', unitsRoutes);
 
 /** Diagnóstico de Firebase (solo en desarrollo): GET /api/debug/firebase devuelve { ok, error? } */
 if (process.env.NODE_ENV === 'development') {

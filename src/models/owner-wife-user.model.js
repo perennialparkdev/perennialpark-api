@@ -10,6 +10,7 @@ const mongoose = require('mongoose');
 const ownerWifeUserSchema = new mongoose.Schema(
   {
     unitId: { type: mongoose.Schema.Types.ObjectId, ref: 'Unit', default: null },
+    idRol: { type: mongoose.Schema.Types.ObjectId, ref: 'Rol', default: null },
     firebase_uid: { type: String, default: null },
     status: { type: Number, default: -1 },
     wife_first: { type: String, default: null },
