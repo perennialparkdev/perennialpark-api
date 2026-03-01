@@ -10,6 +10,7 @@
 |-----------|-------------|
 | [**OWNERS.md**](./OWNERS.md) | API de **Owners**: check-unit, signup, login, complete-profile, invitación (validate + complete). Flujo de registro y autenticación por unidad y propietarios (husband/wife). |
 | [**UNITS.md**](./UNITS.md) | API de **Units**: CRUD de unidades (crear, listar, obtener, editar, eliminar, activar, anular). Incluye preliminar_owner, unlink, reset-password y send-invitation para administradores. Solo accesible por owners con idRol administrador. |
+| [**ROLES.md**](./ROLES.md) | API de **Roles**: CRUD de roles (crear, listar, obtener, editar, activar, anular). Respuestas en inglés. Solo accesible por owners con idRol administrador. |
 
 ---
 
@@ -26,6 +27,11 @@
 - **Todas protegidas** por Firebase Token + rol owner administrador.
 - **CRUD:** create (con preliminar_owner), list, getById, update, delete, activate, anular.
 - **Admin:** unlink (desvincular owners/children/preliminar, unit intacta), reset-password (nueva contraseña = unit_number), send-invitation (reenvío a owners status -1).
+
+### Roles (`/api/roles`)
+
+- **Todas protegidas** por Firebase Token + rol owner administrador.
+- **CRUD:** create, list, getById, update, activate, anular. Respuestas en inglés.
 
 ---
 

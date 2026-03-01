@@ -6,10 +6,12 @@
 
 const mongoose = require('mongoose');
 
+/** status: 1 = active, 2 = inactive */
 const rolSchema = new mongoose.Schema(
   {
     name: { type: String, default: null },
     description: { type: String, default: null },
+    status: { type: Number, default: 1 },
   },
   { timestamps: true, collection: 'rol' }
 );
