@@ -14,7 +14,7 @@ const verifyOwnerAdmin = async (req, res, next) => {
     if (!uid) {
       return res.status(401).json({
         success: false,
-        message: 'No autenticado. Use verifyFirebaseToken antes de verifyOwnerAdmin.',
+        message: 'Not authenticated. Use verifyFirebaseToken before verifyOwnerAdmin.',
       });
     }
 
@@ -26,7 +26,7 @@ const verifyOwnerAdmin = async (req, res, next) => {
     if (!owner) {
       return res.status(403).json({
         success: false,
-        message: 'Acceso denegado. Debes ser un propietario registrado.',
+        message: 'Access denied. You must be a registered owner.',
       });
     }
 
@@ -34,7 +34,7 @@ const verifyOwnerAdmin = async (req, res, next) => {
     if (rolId !== ADMIN_ROL_ID) {
       return res.status(403).json({
         success: false,
-        message: 'Acceso denegado. Solo administradores pueden realizar esta acción.',
+        message: 'Access denied. Only administrators can perform this action.',
       });
     }
 
@@ -44,7 +44,7 @@ const verifyOwnerAdmin = async (req, res, next) => {
     console.error('Error en verifyOwnerAdmin:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al verificar permisos',
+      message: 'Failed to verify permissions',
     });
   }
 };

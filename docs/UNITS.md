@@ -78,12 +78,12 @@ Puede enviarse con objeto `unit` y `preliminar_owner` o con los campos de unidad
 | preliminar_owner | `husband_phone` | string | No | Teléfono para el preliminar owner. |
 | preliminar_owner | `last_name` | string | No | Apellido para el preliminar owner. |
 
-#### Response 201 — Unidad creada
+#### Response 201 — Unit created
 
 ```json
 {
   "success": true,
-  "message": "Unidad creada correctamente",
+  "message": "Unit created successfully",
   "data": {
     "_id": "674a1b2c3d4e5f6789012345",
     "unit_number": "102",
@@ -100,39 +100,39 @@ Puede enviarse con objeto `unit` y `preliminar_owner` o con los campos de unidad
 }
 ```
 
-#### Response 400 — unit_number requerido
+#### Response 400 — unit_number required
 
 ```json
 {
   "success": false,
-  "message": "unit_number es requerido"
+  "message": "unit_number is required"
 }
 ```
 
-#### Response 409 — unit_number duplicado
+#### Response 409 — unit_number duplicate
 
 ```json
 {
   "success": false,
-  "message": "Ya existe una unidad con ese unit_number"
+  "message": "A unit with this unit_number already exists"
 }
 ```
 
 #### Response 401 / 403
 
-Token faltante, inválido o usuario no es owner administrador.
+Missing or invalid token, or user is not an admin owner.
 
 ```json
 {
   "success": false,
-  "message": "Token de autenticación requerido"
+  "message": "Authentication token required"
 }
 ```
 
 ```json
 {
   "success": false,
-  "message": "Acceso denegado. Solo administradores pueden realizar esta acción."
+  "message": "Access denied. Only administrators can perform this action."
 }
 ```
 
@@ -176,14 +176,14 @@ Token faltante, inválido o usuario no es owner administrador.
 
 #### Response 200
 
-Objeto unidad.
+Unit object.
 
 #### Response 404
 
 ```json
 {
   "success": false,
-  "message": "Unidad no encontrada"
+  "message": "Unit not found"
 }
 ```
 
@@ -210,7 +210,7 @@ Objeto unidad.
 ```json
 {
   "success": true,
-  "message": "Unidad actualizada",
+  "message": "Unit updated",
   "data": { ... }
 }
 ```
@@ -220,7 +220,7 @@ Objeto unidad.
 ```json
 {
   "success": false,
-  "message": "Unidad no encontrada"
+  "message": "Unit not found"
 }
 ```
 
@@ -238,7 +238,7 @@ Elimina la unidad y en cascada todos los registros asociados por `unitId`: **Own
 ```json
 {
   "success": true,
-  "message": "Unidad y datos asociados eliminados correctamente"
+  "message": "Unit and associated data deleted successfully"
 }
 ```
 
@@ -247,7 +247,7 @@ Elimina la unidad y en cascada todos los registros asociados por `unitId`: **Own
 ```json
 {
   "success": false,
-  "message": "Unidad no encontrada"
+  "message": "Unit not found"
 }
 ```
 
@@ -265,7 +265,7 @@ Establece `status = 1` (activo).
 ```json
 {
   "success": true,
-  "message": "Unidad activada",
+  "message": "Unit activated",
   "data": { ... }
 }
 ```
@@ -284,7 +284,7 @@ Establece `status = 2` (inactivo).
 ```json
 {
   "success": true,
-  "message": "Unidad anulada",
+  "message": "Unit deactivated",
   "data": { ... }
 }
 ```
@@ -303,7 +303,7 @@ Elimina todos los **OwnerHusbandUser**, **OwnerWifeUser**, **Children** y **Prel
 ```json
 {
   "success": true,
-  "message": "Unidad desvinculada. Owners, children y preliminar owners eliminados. La unidad queda intacta."
+  "message": "Unit unlinked. Owners, children and preliminary owners have been removed. The unit data remains unchanged."
 }
 ```
 
@@ -312,7 +312,7 @@ Elimina todos los **OwnerHusbandUser**, **OwnerWifeUser**, **Children** y **Prel
 ```json
 {
   "success": false,
-  "message": "Unidad no encontrada"
+  "message": "Unit not found"
 }
 ```
 
@@ -343,7 +343,7 @@ El admin puede resetear la contraseña de un owner (husband o wife) de esa unida
 ```json
 {
   "success": true,
-  "message": "Contraseña reseteada. La nueva contraseña es el número de unidad."
+  "message": "Password has been reset. The new password is the unit number."
 }
 ```
 
@@ -352,25 +352,25 @@ El admin puede resetear la contraseña de un owner (husband o wife) de esa unida
 ```json
 {
   "success": false,
-  "message": "Unidad no encontrada"
+  "message": "Unit not found"
 }
 ```
 
 ```json
 {
   "success": false,
-  "message": "No se encontró un owner con ese correo en esta unidad"
+  "message": "No owner found with this email for this unit"
 }
 ```
 
 #### Response 500 (Firebase)
 
-Si el owner tiene cuenta en Firebase y falla la actualización:
+If the owner has a Firebase account and the update fails:
 
 ```json
 {
   "success": false,
-  "message": "Error al actualizar la contraseña en Firebase"
+  "message": "Failed to update password in Firebase"
 }
 ```
 
@@ -401,25 +401,25 @@ El admin puede reenviar el correo de invitación a un owner que tenga **status -
 ```json
 {
   "success": true,
-  "message": "Correo de invitación enviado correctamente"
+  "message": "Invitation email sent successfully"
 }
 ```
 
 #### Response 400
 
-Owner no está pendiente o no tiene invitationToken:
+Owner is not pending or has no invitationToken:
 
 ```json
 {
   "success": false,
-  "message": "Solo se puede reenviar invitación a owners con status pendiente (-1)"
+  "message": "Invitations can only be resent to owners with pending status (-1)"
 }
 ```
 
 ```json
 {
   "success": false,
-  "message": "Este owner no tiene código de invitación"
+  "message": "This owner has no invitation code"
 }
 ```
 
@@ -428,18 +428,18 @@ Owner no está pendiente o no tiene invitationToken:
 ```json
 {
   "success": false,
-  "message": "No se encontró un owner con ese correo en esta unidad"
+  "message": "No owner found with this email for this unit"
 }
 ```
 
 #### Response 500
 
-Error al enviar el correo (Nodemailer).
+Failed to send email (Nodemailer).
 
 ```json
 {
   "success": false,
-  "message": "Error al enviar el correo"
+  "message": "Failed to send email"
 }
 ```
 
@@ -545,7 +545,7 @@ const { data } = await axios.post(
 );
 
 if (data.success) {
-  console.log('Unidad creada:', data.data._id);
+  console.log('Unit created:', data.data._id);
 }
 ```
 

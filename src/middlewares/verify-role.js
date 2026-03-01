@@ -23,7 +23,7 @@ const verifyRole = (allowedRoleIds) => {
       if (!uid) {
         return res.status(401).json({
           success: false,
-          message: 'No autenticado. Use verifyFirebaseToken antes de verifyRole.',
+          message: 'Not authenticated. Use verifyFirebaseToken before verifyRole.',
         });
       }
 
@@ -31,7 +31,7 @@ const verifyRole = (allowedRoleIds) => {
       if (!user || !user.isProfileComplete()) {
         return res.status(403).json({
           success: false,
-          message: 'Perfil incompleto o usuario no encontrado',
+          message: 'Profile incomplete or user not found',
         });
       }
 
@@ -41,7 +41,7 @@ const verifyRole = (allowedRoleIds) => {
       if (!hasRole) {
         return res.status(403).json({
           success: false,
-          message: 'No tiene permiso para acceder a este recurso',
+          message: 'You do not have permission to access this resource',
         });
       }
 
@@ -51,7 +51,7 @@ const verifyRole = (allowedRoleIds) => {
       console.error('Error en verifyRole:', error);
       res.status(500).json({
         success: false,
-        message: 'Error al verificar permisos',
+        message: 'Failed to verify permissions',
       });
     }
   };

@@ -15,7 +15,7 @@ const verifyFirebaseToken = async (req, res, next) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({
       success: false,
-      message: 'Token de autenticación requerido',
+      message: 'Authentication token required',
     });
   }
 
@@ -25,7 +25,7 @@ const verifyFirebaseToken = async (req, res, next) => {
   if (!auth) {
     return res.status(503).json({
       success: false,
-      message: 'Servicio de autenticación no disponible',
+      message: 'Authentication service unavailable',
     });
   }
 
@@ -36,7 +36,7 @@ const verifyFirebaseToken = async (req, res, next) => {
   } catch (error) {
     return res.status(401).json({
       success: false,
-      message: 'Token inválido o expirado',
+      message: 'Invalid or expired token',
     });
   }
 };

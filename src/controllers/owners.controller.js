@@ -33,7 +33,7 @@ ownersCtrl.checkUnitAccess = async (req, res) => {
     if (!usuario || !contrasena) {
       return res.status(400).json({
         success: false,
-        message: 'usuario y contrasena son requeridos',
+        message: 'username and password are required',
       });
     }
     const userStr = String(usuario).trim();
@@ -41,7 +41,7 @@ ownersCtrl.checkUnitAccess = async (req, res) => {
     if (userStr !== passStr) {
       return res.status(400).json({
         success: false,
-        message: 'usuario y contrasena deben coincidir con el número de unidad',
+        message: 'username and password must match the unit number',
       });
     }
     const unit_number = userStr;
@@ -49,7 +49,7 @@ ownersCtrl.checkUnitAccess = async (req, res) => {
     if (!unit) {
       return res.status(404).json({
         success: false,
-        message: 'Unidad no encontrada',
+        message: 'Unit not found',
       });
     }
     const [hasHusband, hasWife] = await Promise.all([
@@ -59,12 +59,12 @@ ownersCtrl.checkUnitAccess = async (req, res) => {
     if (hasHusband || hasWife) {
       return res.status(403).json({
         success: false,
-        message: 'No puede ingresar: esta unidad ya tiene propietario(s) registrado(s).',
+        message: 'Access denied: this unit already has owner(s) registered.',
       });
     }
     res.status(200).json({
       success: true,
-      message: 'Puede ingresar',
+      message: 'Access granted',
       data: { unitId: unit._id, unit_number: unit.unit_number },
     });
   } catch (error) {
@@ -83,7 +83,7 @@ ownersCtrl.signUp = async (req, res) => {
     if (!email || !contrasena) {
       return res.status(400).json({
         success: false,
-        message: 'email y contrasena son requeridos',
+        message: 'email and password are required',
       });
     }
     const emailStr = String(email).trim();
@@ -91,13 +91,13 @@ ownersCtrl.signUp = async (req, res) => {
     if (!emailStr) {
       return res.status(400).json({
         success: false,
-        message: 'El correo electrónico no puede estar vacío',
+        message: 'Email address cannot be empty',
       });
     }
     if (passwordStr.length < 6) {
       return res.status(400).json({
         success: false,
-        message: 'La contraseña debe tener al menos 6 caracteres',
+        message: 'Password must be at least 6 characters',
       });
     }
 
@@ -105,10 +105,10 @@ ownersCtrl.signUp = async (req, res) => {
     if (!auth) {
       const detail = process.env.NODE_ENV === 'development' && getInitError()
         ? getInitError()
-        : 'Revisa la configuración de Firebase.';
+        : 'Check your Firebase configuration.';
       return res.status(503).json({
         success: false,
-        message: 'Servicio de autenticación no disponible. Revisa la configuración de Firebase.',
+        message: 'Authentication service unavailable. Please check your Firebase configuration.',
         error: process.env.NODE_ENV === 'development' ? detail : undefined,
       });
     }
@@ -124,31 +124,31 @@ ownersCtrl.signUp = async (req, res) => {
       if (err.code === 'auth/email-already-exists') {
         return res.status(409).json({
           success: false,
-          message: 'Ya existe una cuenta con este correo electrónico.',
+          message: 'An account with this email address already exists.',
         });
       }
       if (err.code === 'auth/invalid-email') {
         return res.status(400).json({
           success: false,
-          message: 'El formato del correo electrónico no es válido.',
+          message: 'Invalid email address format.',
         });
       }
       if (err.code === 'auth/weak-password') {
         return res.status(400).json({
           success: false,
-          message: 'La contraseña es demasiado débil.',
+          message: 'Password is too weak.',
         });
       }
       console.error('Firebase signUp error:', err.code, err.message);
       return res.status(500).json({
         success: false,
-        message: err.message || 'Error al crear el usuario en Firebase.',
+        message: err.message || 'Failed to create user in Firebase.',
       });
     }
 
     res.status(201).json({
       success: true,
-      message: 'Usuario creado correctamente',
+      message: 'User created successfully',
       data: {
         email: userRecord.email,
         uid: userRecord.uid,
@@ -158,7 +158,7 @@ ownersCtrl.signUp = async (req, res) => {
     console.error('Owners signUp error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error interno del servidor',
+      message: error.message || 'Internal server error',
     });
   }
 };
@@ -174,7 +174,7 @@ ownersCtrl.login = async (req, res) => {
     if (!email || !contrasena) {
       return res.status(400).json({
         success: false,
-        message: 'email y contrasena son requeridos',
+        message: 'email and password are required',
       });
     }
     const emailStr = String(email).trim();
@@ -182,7 +182,7 @@ ownersCtrl.login = async (req, res) => {
     if (!emailStr) {
       return res.status(400).json({
         success: false,
-        message: 'El correo electrónico no puede estar vacío',
+        message: 'Email address cannot be empty',
       });
     }
 
@@ -190,7 +190,7 @@ ownersCtrl.login = async (req, res) => {
     if (!apiKey || !apiKey.trim()) {
       return res.status(503).json({
         success: false,
-        message: 'Login no configurado. Faltan FIREBASE_WEB_API_KEY en .env',
+        message: 'Login not configured. Missing FIREBASE_WEB_API_KEY in .env',
       });
     }
 
@@ -208,11 +208,11 @@ ownersCtrl.login = async (req, res) => {
     const data = await response.json();
 
     if (!response.ok) {
-      const msg = data?.error?.message || data?.error || 'Error al iniciar sesión';
+      const msg = data?.error?.message || data?.error || 'Failed to sign in';
       if (msg.includes('INVALID_LOGIN_CREDENTIALS') || msg.includes('EMAIL_NOT_FOUND') || msg.includes('INVALID_PASSWORD')) {
         return res.status(401).json({
           success: false,
-          message: 'Correo o contraseña incorrectos.',
+          message: 'Invalid email or password.',
         });
       }
       return res.status(401).json({
@@ -223,7 +223,7 @@ ownersCtrl.login = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Sesión iniciada',
+      message: 'Signed in successfully',
       data: {
         token: data.idToken,
         expiresIn: data.expiresIn,
@@ -235,7 +235,7 @@ ownersCtrl.login = async (req, res) => {
     console.error('Owners login error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error interno del servidor',
+      message: error.message || 'Internal server error',
     });
   }
 };
@@ -251,7 +251,7 @@ ownersCtrl.completeProfile = async (req, res) => {
     if (!firebaseEmail) {
       return res.status(401).json({
         success: false,
-        message: 'Token de autenticación requerido o inválido.',
+        message: 'Valid authentication token required.',
       });
     }
 
@@ -270,7 +270,7 @@ ownersCtrl.completeProfile = async (req, res) => {
     if (!isHusbandActive && !isWifeActive) {
       return res.status(400).json({
         success: false,
-        message: 'El correo del formulario (husband_email o wife_email) debe ser el mismo con el que te registraste en Firebase. Usa ese correo en el formulario.',
+        message: 'The email in the form (husband_email or wife_email) must match the one you used to register in Firebase. Use that email in the form.',
       });
     }
 
@@ -279,7 +279,7 @@ ownersCtrl.completeProfile = async (req, res) => {
     if (existingHusband || existingWife) {
       return res.status(409).json({
         success: false,
-        message: 'Uno de los correos ya está registrado como propietario en otra unidad. Usa el correo con el que iniciaste sesión y un correo distinto para el otro propietario (si aplica).',
+        message: 'One of these emails is already registered as an owner for another unit. Use the email you signed in with and a different email for the other owner (if applicable).',
       });
     }
 
@@ -287,7 +287,7 @@ ownersCtrl.completeProfile = async (req, res) => {
     if (!unitNumber) {
       return res.status(400).json({
         success: false,
-        message: 'unit_number es requerido en unit.',
+        message: 'unit_number is required in unit.',
       });
     }
 
@@ -377,14 +377,14 @@ ownersCtrl.completeProfile = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Perfil de unidad y propietarios creados correctamente.',
+      message: 'Unit and owner profiles created successfully.',
       data: { unitId },
     });
   } catch (error) {
     console.error('Owners completeProfile error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error interno del servidor',
+      message: error.message || 'Internal server error',
     });
   }
 };
@@ -414,7 +414,7 @@ ownersCtrl.validateInvitation = async (req, res) => {
     if (!emailStr || !tokenStr) {
       return res.status(400).json({
         success: false,
-        message: 'email y token son requeridos.',
+        message: 'email and token are required.',
       });
     }
 
@@ -433,13 +433,13 @@ ownersCtrl.validateInvitation = async (req, res) => {
     if (!owner) {
       return res.status(404).json({
         success: false,
-        message: 'Invitación no encontrada o código incorrecto. Verifica el correo y el código.',
+        message: 'Invitation not found or invalid code. Please check the email and code.',
       });
     }
     if (owner.status === STATUS.ACTIVO) {
       return res.status(400).json({
         success: false,
-        message: 'Esta cuenta ya fue activada.',
+        message: 'This account has already been activated.',
       });
     }
 
@@ -457,7 +457,7 @@ ownersCtrl.validateInvitation = async (req, res) => {
     console.error('Owners validateInvitation error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error interno del servidor',
+      message: error.message || 'Internal server error',
     });
   }
 };
@@ -473,7 +473,7 @@ ownersCtrl.completeInvitation = async (req, res) => {
     if (!emailStr || !tokenStr) {
       return res.status(400).json({
         success: false,
-        message: 'email y token son requeridos.',
+        message: 'email and token are required.',
       });
     }
 
@@ -494,13 +494,13 @@ ownersCtrl.completeInvitation = async (req, res) => {
     if (!owner) {
       return res.status(404).json({
         success: false,
-        message: 'Invitación no encontrada o código incorrecto.',
+        message: 'Invitation not found or invalid code.',
       });
     }
     if (owner.status === STATUS.ACTIVO) {
       return res.status(400).json({
         success: false,
-        message: 'Esta cuenta ya fue activada.',
+        message: 'This account has already been activated.',
       });
     }
 
@@ -508,7 +508,7 @@ ownersCtrl.completeInvitation = async (req, res) => {
     if (!pass || pass.length < 6) {
       return res.status(400).json({
         success: false,
-        message: 'La contraseña es requerida y debe tener al menos 6 caracteres.',
+        message: 'Password is required and must be at least 6 characters.',
       });
     }
 
@@ -516,7 +516,7 @@ ownersCtrl.completeInvitation = async (req, res) => {
     if (!auth) {
       return res.status(503).json({
         success: false,
-        message: 'Servicio de autenticación no disponible.',
+        message: 'Authentication service unavailable.',
       });
     }
 
@@ -532,12 +532,12 @@ ownersCtrl.completeInvitation = async (req, res) => {
       if (err.code === 'auth/email-already-exists') {
         return res.status(409).json({
           success: false,
-          message: 'Ya existe una cuenta con este correo. Inicia sesión o restablece la contraseña.',
+          message: 'An account with this email already exists. Sign in or reset your password.',
         });
       }
       return res.status(500).json({
         success: false,
-        message: err.message || 'Error al crear usuario en Firebase.',
+        message: err.message || 'Failed to create user in Firebase.',
       });
     }
 
@@ -560,14 +560,14 @@ ownersCtrl.completeInvitation = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Perfil completado. Ya puedes iniciar sesión con tu correo y contraseña.',
+      message: 'Profile completed. You can now sign in with your email and password.',
       data: { uid: firebaseUid, email: emailStr },
     });
   } catch (error) {
     console.error('Owners completeInvitation error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error interno del servidor',
+      message: error.message || 'Internal server error',
     });
   }
 };

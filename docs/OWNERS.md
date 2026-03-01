@@ -59,14 +59,14 @@ Permite comprobar si un número de unidad puede “ingresar”: se envían **usu
 | `usuario` | string | Sí | Número de unidad (debe coincidir con `unit_number` en Unit). |
 | `contrasena` | string | Sí | Debe ser **igual** a `usuario` (mismo valor que el número de unidad). |
 
-#### Response 200 — Puede ingresar
+#### Response 200 — Access granted
 
-Unidad existe y **no** tiene owners registrados.
+Unit exists and has **no** registered owners.
 
 ```json
 {
   "success": true,
-  "message": "Puede ingresar",
+  "message": "Access granted",
   "data": {
     "unitId": "674a1b2c3d4e5f6789012345",
     "unit_number": "101"
@@ -74,54 +74,54 @@ Unidad existe y **no** tiene owners registrados.
 }
 ```
 
-#### Response 400 — usuario/contrasena inválidos
+#### Response 400 — Invalid username/password
 
-Faltan campos o no coinciden.
+Missing fields or values do not match.
 
 ```json
 {
   "success": false,
-  "message": "usuario y contrasena son requeridos"
+  "message": "username and password are required"
 }
 ```
 
 ```json
 {
   "success": false,
-  "message": "usuario y contrasena deben coincidir con el número de unidad"
+  "message": "username and password must match the unit number"
 }
 ```
 
-#### Response 404 — Unidad no encontrada
+#### Response 404 — Unit not found
 
-No existe una Unit con ese `unit_number`.
+No Unit exists with that `unit_number`.
 
 ```json
 {
   "success": false,
-  "message": "Unidad no encontrada"
+  "message": "Unit not found"
 }
 ```
 
-#### Response 403 — No puede ingresar
+#### Response 403 — Access denied
 
-La unidad ya tiene al menos un owner (husband o wife) registrado.
+The unit already has at least one owner (husband or wife) registered.
 
 ```json
 {
   "success": false,
-  "message": "No puede ingresar: esta unidad ya tiene propietario(s) registrado(s)."
+  "message": "Access denied: this unit already has owner(s) registered."
 }
 ```
 
 #### Response 500
 
-Error interno (ej. base de datos).
+Internal error (e.g. database).
 
 ```json
 {
   "success": false,
-  "message": "<mensaje de error>"
+  "message": "<error message>"
 }
 ```
 
@@ -149,12 +149,12 @@ Crea un usuario en **Firebase Auth** con correo y contraseña. El usuario podrá
 | `email` | string | Sí | Correo electrónico (formato válido). |
 | `contrasena` | string | Sí | Contraseña (mínimo 6 caracteres). |
 
-#### Response 201 — Usuario creado
+#### Response 201 — User created
 
 ```json
 {
   "success": true,
-  "message": "Usuario creado correctamente",
+  "message": "User created successfully",
   "data": {
     "email": "propietario@ejemplo.com",
     "uid": "abc123firebaseUid456"
@@ -162,42 +162,42 @@ Crea un usuario en **Firebase Auth** con correo y contraseña. El usuario podrá
 }
 ```
 
-#### Response 400 — Validación
+#### Response 400 — Validation
 
-Faltan campos, email vacío, contraseña &lt; 6 caracteres, email inválido o contraseña débil.
+Missing fields, empty email, password &lt; 6 characters, invalid email or weak password.
 
 ```json
 {
   "success": false,
-  "message": "email y contrasena son requeridos"
+  "message": "email and password are required"
 }
 ```
 
 ```json
 {
   "success": false,
-  "message": "La contraseña debe tener al menos 6 caracteres"
+  "message": "Password must be at least 6 characters"
 }
 ```
 
-#### Response 409 — Correo ya existe
+#### Response 409 — Email already exists
 
 ```json
 {
   "success": false,
-  "message": "Ya existe una cuenta con este correo electrónico."
+  "message": "An account with this email address already exists."
 }
 ```
 
-#### Response 503 — Firebase no disponible
+#### Response 503 — Firebase unavailable
 
-Credenciales de Firebase Admin no configuradas o inválidas.
+Firebase Admin credentials not configured or invalid.
 
 ```json
 {
   "success": false,
-  "message": "Servicio de autenticación no disponible. Revisa la configuración de Firebase.",
-  "error": "<detalle solo en NODE_ENV=development>"
+  "message": "Authentication service unavailable. Please check your Firebase configuration.",
+  "error": "<detail only when NODE_ENV=development>"
 }
 ```
 
@@ -225,12 +225,12 @@ Autentica con Firebase (email + contraseña) y devuelve un **idToken**. El clien
 | `email` | string | Sí | Correo del usuario. |
 | `contrasena` | string | Sí | Contraseña del usuario. |
 
-#### Response 200 — Sesión iniciada
+#### Response 200 — Signed in successfully
 
 ```json
 {
   "success": true,
-  "message": "Sesión iniciada",
+  "message": "Signed in successfully",
   "data": {
     "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
     "expiresIn": "3600",
@@ -247,43 +247,43 @@ Autentica con Firebase (email + contraseña) y devuelve un **idToken**. El clien
 | `uid` | Identificador del usuario en Firebase. |
 | `email` | Correo del usuario. |
 
-#### Response 400 — Validación
+#### Response 400 — Validation
 
 ```json
 {
   "success": false,
-  "message": "email y contrasena son requeridos"
+  "message": "email and password are required"
 }
 ```
 
-#### Response 401 — Credenciales incorrectas
+#### Response 401 — Invalid credentials
 
 ```json
 {
   "success": false,
-  "message": "Correo o contraseña incorrectos."
+  "message": "Invalid email or password."
 }
 ```
 
-#### Response 503 — Login no configurado
+#### Response 503 — Login not configured
 
-Falta `FIREBASE_WEB_API_KEY` en `.env`.
+Missing `FIREBASE_WEB_API_KEY` in `.env`.
 
 ```json
 {
   "success": false,
-  "message": "Login no configurado. Faltan FIREBASE_WEB_API_KEY en .env"
+  "message": "Login not configured. Missing FIREBASE_WEB_API_KEY in .env"
 }
 ```
 
 #### Response 500
 
-Error interno.
+Internal error.
 
 ```json
 {
   "success": false,
-  "message": "<mensaje de error>"
+  "message": "<error message>"
 }
 ```
 
@@ -340,46 +340,46 @@ Recibe el formulario primario con datos de **unit**, **husband**, **wife** y **c
 | wife | `wife_first`, `wife_email`, `wife_phone`, `last_name`, `password` | string | Según rol | El otro correo (si se envía) crea owner pendiente; recibe invitación por correo. |
 | children | array de `{ name, age, genre }` | array | No | Lista de hijos; puede ser `[]`. |
 
-#### Response 201 — Perfil creado
+#### Response 201 — Profile created
 
 ```json
 {
   "success": true,
-  "message": "Perfil de unidad y propietarios creados correctamente.",
+  "message": "Unit and owner profiles created successfully.",
   "data": {
     "unitId": "674a1b2c3d4e5f6789012345"
   }
 }
 ```
 
-#### Response 400 — Email no coincide con token
+#### Response 400 — Email does not match token
 
-El correo del formulario (husband_email o wife_email) no es el del usuario logueado.
+The email in the form (husband_email or wife_email) is not the one the user signed in with.
 
 ```json
 {
   "success": false,
-  "message": "El correo del formulario (husband_email o wife_email) debe ser el mismo con el que te registraste en Firebase. Usa ese correo en el formulario."
+  "message": "The email in the form (husband_email or wife_email) must match the one you used to register in Firebase. Use that email in the form."
 }
 ```
 
-#### Response 409 — Correo ya registrado
+#### Response 409 — Email already registered
 
-Uno de los correos ya existe como propietario en otra unidad.
+One of the emails is already registered as an owner for another unit.
 
 ```json
 {
   "success": false,
-  "message": "Uno de los correos ya está registrado como propietario en otra unidad. Usa el correo con el que iniciaste sesión y un correo distinto para el otro propietario (si aplica)."
+  "message": "One of these emails is already registered as an owner for another unit. Use the email you signed in with and a different email for the other owner (if applicable)."
 }
 ```
 
-#### Response 401 — Sin token o token inválido
+#### Response 401 — Missing or invalid token
 
 ```json
 {
   "success": false,
-  "message": "Token de autenticación requerido o inválido."
+  "message": "Valid authentication token required."
 }
 ```
 
@@ -427,21 +427,21 @@ El co-propietario que recibió el correo de invitación envía su **email** y el
 | `ownerType` | `"husband"` o `"wife"`. |
 | `missingFields` | Nombres de campos que están vacíos y debe completar el usuario (ej. `password`, `husband_first`, `last_name`). |
 
-#### Response 400 — Cuenta ya activada
+#### Response 400 — Account already activated
 
 ```json
 {
   "success": false,
-  "message": "Esta cuenta ya fue activada."
+  "message": "This account has already been activated."
 }
 ```
 
-#### Response 404 — Invitación no encontrada
+#### Response 404 — Invitation not found
 
 ```json
 {
   "success": false,
-  "message": "Invitación no encontrada o código incorrecto. Verifica el correo y el código."
+  "message": "Invitation not found or invalid code. Please check the email and code."
 }
 ```
 
@@ -476,12 +476,12 @@ El co-propietario envía **email**, **token** y los campos que faltan (incluida 
 | `password` | string | Sí | Mínimo 6 caracteres; se usa para crear el usuario en Firebase. |
 | Resto | string | Según missingFields | Campos que devolvió `missingFields` en validate (ej. `wife_first`, `wife_phone`, `last_name` para wife; `husband_first`, `husband_phone`, `last_name` para husband). |
 
-#### Response 200 — Perfil completado
+#### Response 200 — Profile completed
 
 ```json
 {
   "success": true,
-  "message": "Perfil completado. Ya puedes iniciar sesión con tu correo y contraseña.",
+  "message": "Profile completed. You can now sign in with your email and password.",
   "data": {
     "uid": "xyz789firebaseUid",
     "email": "mary@ejemplo.com"
@@ -489,21 +489,21 @@ El co-propietario envía **email**, **token** y los campos que faltan (incluida 
 }
 ```
 
-#### Response 404 — Invitación no encontrada
+#### Response 404 — Invitation not found
 
 ```json
 {
   "success": false,
-  "message": "Invitación no encontrada o código incorrecto."
+  "message": "Invitation not found or invalid code."
 }
 ```
 
-#### Response 409 — Correo ya tiene cuenta en Firebase
+#### Response 409 — Email already has Firebase account
 
 ```json
 {
   "success": false,
-  "message": "Ya existe una cuenta con este correo. Inicia sesión o restablece la contraseña."
+  "message": "An account with this email already exists. Sign in or reset your password."
 }
 ```
 
@@ -563,10 +563,10 @@ const { data } = await axios.post(
 );
 
 if (data.success) {
-  // Puede ingresar: guardar data.data.unitId y data.data.unit_number para el flujo de registro
+  // Access granted: save data.data.unitId and data.data.unit_number for registration flow
   console.log('Unit ID:', data.data.unitId, 'Unit number:', data.data.unit_number);
 } else {
-  // data.message: "Unidad no encontrada" | "No puede ingresar: ..." | mensaje de validación
+  // data.message: "Unit not found" | "Access denied: ..." | validation message
   console.error(data.message);
 }
 ```
@@ -585,10 +585,10 @@ try {
   }
 } catch (err) {
   if (err.response?.status === 403) {
-    // Unidad ya tiene propietario(s)
+    // Unit already has owner(s)
   }
   if (err.response?.status === 404) {
-    // Unidad no encontrada
+    // Unit not found
   }
   if (err.response?.status === 400) {
     // Validación: faltan campos o no coinciden
@@ -609,7 +609,7 @@ if (data.success) {
   const { email, uid } = data.data;
   // Usuario creado en Firebase; redirigir a login o a completar perfil
 }
-// 409: data.message === "Ya existe una cuenta con este correo electrónico."
+// 409: data.message === "An account with this email address already exists."
 ```
 
 ### Login y uso del token en rutas protegidas

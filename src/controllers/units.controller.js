@@ -46,7 +46,7 @@ unitsCtrl.create = async (req, res) => {
     if (!unitNumber) {
       return res.status(400).json({
         success: false,
-        message: 'unit_number es requerido',
+        message: 'unit_number is required',
       });
     }
 
@@ -54,7 +54,7 @@ unitsCtrl.create = async (req, res) => {
     if (existing) {
       return res.status(409).json({
         success: false,
-        message: 'Ya existe una unidad con ese unit_number',
+        message: 'A unit with this unit_number already exists',
       });
     }
 
@@ -67,7 +67,7 @@ unitsCtrl.create = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Unidad creada correctamente',
+      message: 'Unit created successfully',
       data: unit,
     });
   } catch (error) {
@@ -92,7 +92,7 @@ unitsCtrl.getById = async (req, res) => {
     if (!unit) {
       return res.status(404).json({
         success: false,
-        message: 'Unidad no encontrada',
+        message: 'Unit not found',
       });
     }
     res.status(200).json({ success: true, data: unit });
@@ -109,12 +109,12 @@ unitsCtrl.update = async (req, res) => {
     if (!unit) {
       return res.status(404).json({
         success: false,
-        message: 'Unidad no encontrada',
+        message: 'Unit not found',
       });
     }
     res.status(200).json({
       success: true,
-      message: 'Unidad actualizada',
+      message: 'Unit updated',
       data: unit,
     });
   } catch (error) {
@@ -129,7 +129,7 @@ unitsCtrl.remove = async (req, res) => {
     if (!unit) {
       return res.status(404).json({
         success: false,
-        message: 'Unidad no encontrada',
+        message: 'Unit not found',
       });
     }
 
@@ -143,7 +143,7 @@ unitsCtrl.remove = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Unidad y datos asociados eliminados correctamente',
+      message: 'Unit and associated data deleted successfully',
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -160,12 +160,12 @@ unitsCtrl.activate = async (req, res) => {
     if (!unit) {
       return res.status(404).json({
         success: false,
-        message: 'Unidad no encontrada',
+        message: 'Unit not found',
       });
     }
     res.status(200).json({
       success: true,
-      message: 'Unidad activada',
+      message: 'Unit activated',
       data: unit,
     });
   } catch (error) {
@@ -183,12 +183,12 @@ unitsCtrl.anular = async (req, res) => {
     if (!unit) {
       return res.status(404).json({
         success: false,
-        message: 'Unidad no encontrada',
+        message: 'Unit not found',
       });
     }
     res.status(200).json({
       success: true,
-      message: 'Unidad anulada',
+      message: 'Unit deactivated',
       data: unit,
     });
   } catch (error) {
@@ -206,7 +206,7 @@ unitsCtrl.unlink = async (req, res) => {
     if (!unit) {
       return res.status(404).json({
         success: false,
-        message: 'Unidad no encontrada',
+        message: 'Unit not found',
       });
     }
     await Promise.all([
@@ -217,7 +217,7 @@ unitsCtrl.unlink = async (req, res) => {
     ]);
     res.status(200).json({
       success: true,
-      message: 'Unidad desvinculada. Owners, children y preliminar owners eliminados. La unidad queda intacta.',
+      message: 'Unit unlinked. Owners, children and preliminary owners have been removed. The unit data remains unchanged.',
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -235,14 +235,14 @@ unitsCtrl.resetPassword = async (req, res) => {
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: 'email es requerido en el body',
+        message: 'email is required in the request body',
       });
     }
     const unit = await Unit.findById(unitId);
     if (!unit) {
       return res.status(404).json({
         success: false,
-        message: 'Unidad no encontrada',
+        message: 'Unit not found',
       });
     }
     const unitNumber = unit.unit_number || '';
@@ -257,7 +257,7 @@ unitsCtrl.resetPassword = async (req, res) => {
     if (!owner) {
       return res.status(404).json({
         success: false,
-        message: 'No se encontró un owner con ese correo en esta unidad',
+        message: 'No owner found with this email for this unit',
       });
     }
 
@@ -268,7 +268,7 @@ unitsCtrl.resetPassword = async (req, res) => {
       } catch (err) {
         return res.status(500).json({
           success: false,
-          message: err.message || 'Error al actualizar la contraseña en Firebase',
+          message: err.message || 'Failed to update password in Firebase',
         });
       }
     }
@@ -276,7 +276,7 @@ unitsCtrl.resetPassword = async (req, res) => {
     await OwnerModel.findByIdAndUpdate(owner._id, { $set: { password: newPassword } });
     res.status(200).json({
       success: true,
-      message: 'Contraseña reseteada. La nueva contraseña es el número de unidad.',
+      message: 'Password has been reset. The new password is the unit number.',
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -294,14 +294,14 @@ unitsCtrl.sendInvitation = async (req, res) => {
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: 'email es requerido en el body',
+        message: 'email is required in the request body',
       });
     }
     const unit = await Unit.findById(unitId);
     if (!unit) {
       return res.status(404).json({
         success: false,
-        message: 'Unidad no encontrada',
+        message: 'Unit not found',
       });
     }
 
@@ -314,19 +314,19 @@ unitsCtrl.sendInvitation = async (req, res) => {
     if (!owner) {
       return res.status(404).json({
         success: false,
-        message: 'No se encontró un owner con ese correo en esta unidad',
+        message: 'No owner found with this email for this unit',
       });
     }
     if (owner.status !== OWNER_STATUS.PENDING) {
       return res.status(400).json({
         success: false,
-        message: 'Solo se puede reenviar invitación a owners con status pendiente (-1)',
+        message: 'Invitations can only be resent to owners with pending status (-1)',
       });
     }
     if (!owner.invitationToken) {
       return res.status(400).json({
         success: false,
-        message: 'Este owner no tiene código de invitación',
+        message: 'This owner has no invitation code',
       });
     }
 
@@ -336,12 +336,12 @@ unitsCtrl.sendInvitation = async (req, res) => {
     if (!sent.success) {
       return res.status(500).json({
         success: false,
-        message: sent.error || 'Error al enviar el correo',
+        message: sent.error || 'Failed to send email',
       });
     }
     res.status(200).json({
       success: true,
-      message: 'Correo de invitación enviado correctamente',
+      message: 'Invitation email sent successfully',
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
