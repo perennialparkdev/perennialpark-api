@@ -508,8 +508,8 @@ unitsCtrl.resetPassword = async (req, res) => {
         message: 'Unit not found',
       });
     }
-    const unitNumber = unit.unit_number || '';
-    const newPassword = String(unitNumber).trim() || unitId.toString();
+    //const unitNumber = unit.unit_number || '';
+    const newPassword = String(123456).trim() || unitId.toString();
 
     let owner = await OwnerHusbandUser.findOne({ unitId, husband_email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
     let OwnerModel = OwnerHusbandUser;
