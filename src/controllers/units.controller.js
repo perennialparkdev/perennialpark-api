@@ -36,6 +36,34 @@ function buildUnitFromBody(body) {
   };
 }
 
+/** Builds unit update object with only defined fields (for PATCH-style update). */
+function buildUnitUpdateFromBody(body) {
+  const data = body.unit || body;
+  const out = {};
+  if (data.unit_number !== undefined) out.unit_number = trim(data.unit_number);
+  if (data.address !== undefined) out.address = trim(data.address);
+  if (data.city !== undefined) out.city = trim(data.city);
+  if (data.state !== undefined) out.state = trim(data.state);
+  if (data.zip !== undefined) out.zip = trim(data.zip);
+  if (data.colony_name !== undefined) out.colony_name = trim(data.colony_name);
+  if (data.notes !== undefined) out.notes = trim(data.notes);
+  if (data.status !== undefined) out.status = data.status != null ? Number(data.status) : STATUS.ACTIVO;
+  return out;
+}
+
+/** Builds owner (husband/wife) update object with only defined fields. */
+function buildOwnerUpdateFromBody(data, emailField, firstField, phoneField) {
+  if (!data || typeof data !== 'object') return null;
+  const out = {};
+  if (data[firstField] !== undefined) out[firstField] = trim(data[firstField]);
+  if (data.last_name !== undefined) out.last_name = trim(data.last_name);
+  if (data[emailField] !== undefined) out[emailField] = trim(data[emailField]);
+  if (data[phoneField] !== undefined) out[phoneField] = trim(data[phoneField]);
+  if (data.password !== undefined) out.password = data.password ? trim(data.password) : null;
+  if (data.status !== undefined) out.status = data.status != null ? Number(data.status) : OWNER_STATUS.PENDING;
+  return Object.keys(out).length ? out : null;
+}
+
 unitsCtrl.create = async (req, res) => {
   try {
     const body = req.body || {};
@@ -124,7 +152,9 @@ unitsCtrl.list = async (req, res) => {
               husband_first: husband.husband_first,
               last_name: husband.last_name,
               husband_email: husband.husband_email,
+              husband_phone: husband.husband_phone,
               password: husband.password,
+              status: husband.status,
             }
           : null;
         item.wife = wife
@@ -132,7 +162,9 @@ unitsCtrl.list = async (req, res) => {
               wife_first: wife.wife_first,
               last_name: wife.last_name,
               wife_email: wife.wife_email,
+              wife_phone: wife.wife_phone,
               password: wife.password,
+              status: wife.status,
             }
           : null;
         item.message = null;
@@ -163,14 +195,70 @@ unitsCtrl.list = async (req, res) => {
 
 unitsCtrl.getById = async (req, res) => {
   try {
-    const unit = await Unit.findById(req.params.id);
+    const unit = await Unit.findById(req.params.id).lean();
     if (!unit) {
       return res.status(404).json({
         success: false,
         message: 'Unit not found',
       });
     }
-    res.status(200).json({ success: true, data: unit });
+    const unitId = unit._id;
+
+    const [husband, wife, preliminarOwner, childrenList] = await Promise.all([
+      OwnerHusbandUser.findOne({ unitId }).lean(),
+      OwnerWifeUser.findOne({ unitId }).lean(),
+      PreliminarOwner.findOne({ unitId }).lean(),
+      Children.find({ unitId }).lean(),
+    ]);
+
+    const children = (childrenList || []).map((c) => ({
+      name: c.name,
+      age: c.age,
+      genre: c.genre,
+    }));
+
+    const item = { unit };
+
+    if (husband || wife) {
+      item.husband = husband
+        ? {
+            husband_first: husband.husband_first,
+            last_name: husband.last_name,
+            husband_email: husband.husband_email,
+            husband_phone: husband.husband_phone,
+            password: husband.password,
+            status: husband.status,
+          }
+        : null;
+      item.wife = wife
+        ? {
+            wife_first: wife.wife_first,
+            last_name: wife.last_name,
+            wife_email: wife.wife_email,
+            wife_phone: wife.wife_phone,
+            password: wife.password,
+            status: wife.status,
+          }
+        : null;
+      item.message = null;
+      item.preliminarOwner = null;
+    } else {
+      item.husband = null;
+      item.wife = null;
+      item.preliminarOwner = preliminarOwner
+        ? {
+            husband_phone: preliminarOwner.husband_phone,
+            last_name: preliminarOwner.last_name,
+          }
+        : null;
+      item.message = preliminarOwner
+        ? 'Unit without owners.'
+        : 'No owners, invitees or registered for this unit.';
+    }
+
+    item.children = children;
+
+    res.status(200).json({ success: true, data: item });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -178,19 +266,112 @@ unitsCtrl.getById = async (req, res) => {
 
 unitsCtrl.update = async (req, res) => {
   try {
+    const unitId = req.params.id;
     const body = req.body || {};
-    const update = buildUnitFromBody(body);
-    const unit = await Unit.findByIdAndUpdate(req.params.id, { $set: update }, { new: true });
+
+    const unit = await Unit.findById(unitId);
     if (!unit) {
       return res.status(404).json({
         success: false,
         message: 'Unit not found',
       });
     }
+
+    const unitUpdate = buildUnitUpdateFromBody(body);
+    if (unitUpdate.unit_number !== undefined && unitUpdate.unit_number !== unit.unit_number) {
+      const existing = await Unit.findOne({ unit_number: unitUpdate.unit_number, _id: { $ne: unitId } });
+      if (existing) {
+        return res.status(409).json({
+          success: false,
+          message: 'A unit with this unit_number already exists',
+        });
+      }
+    }
+
+    if (Object.keys(unitUpdate).length > 0) {
+      await Unit.findByIdAndUpdate(unitId, { $set: unitUpdate });
+    }
+
+    const husbandUpdate = buildOwnerUpdateFromBody(body.husband, 'husband_email', 'husband_first', 'husband_phone');
+    if (husbandUpdate) {
+      await OwnerHusbandUser.findOneAndUpdate(
+        { unitId },
+        { $set: { ...husbandUpdate, unitId } },
+        { new: true, upsert: true }
+      );
+    }
+
+    const wifeUpdate = buildOwnerUpdateFromBody(body.wife, 'wife_email', 'wife_first', 'wife_phone');
+    if (wifeUpdate) {
+      await OwnerWifeUser.findOneAndUpdate(
+        { unitId },
+        { $set: { ...wifeUpdate, unitId } },
+        { new: true, upsert: true }
+      );
+    }
+
+    if (Array.isArray(body.children)) {
+      await Children.deleteMany({ unitId });
+      if (body.children.length > 0) {
+        await Children.insertMany(
+          body.children.map((c) => ({
+            unitId,
+            name: trim(c.name),
+            age: c.age != null ? Number(c.age) : null,
+            genre: trim(c.genre),
+          }))
+        );
+      }
+    }
+
+    const updatedUnit = await Unit.findById(unitId).lean();
+    const [husband, wife, preliminarOwner, childrenList] = await Promise.all([
+      OwnerHusbandUser.findOne({ unitId }).lean(),
+      OwnerWifeUser.findOne({ unitId }).lean(),
+      PreliminarOwner.findOne({ unitId }).lean(),
+      Children.find({ unitId }).lean(),
+    ]);
+
+    const children = (childrenList || []).map((c) => ({ name: c.name, age: c.age, genre: c.genre }));
+
+    const item = { unit: updatedUnit };
+    if (husband || wife) {
+      item.husband = husband
+        ? {
+            husband_first: husband.husband_first,
+            last_name: husband.last_name,
+            husband_email: husband.husband_email,
+            husband_phone: husband.husband_phone,
+            password: husband.password,
+            status: husband.status,
+          }
+        : null;
+      item.wife = wife
+        ? {
+            wife_first: wife.wife_first,
+            last_name: wife.last_name,
+            wife_email: wife.wife_email,
+            wife_phone: wife.wife_phone,
+            password: wife.password,
+            status: wife.status,
+          }
+        : null;
+      item.message = null;
+      item.preliminarOwner = null;
+    } else {
+      item.husband = null;
+      item.wife = null;
+      item.preliminarOwner = preliminarOwner
+        ? { husband_phone: preliminarOwner.husband_phone, last_name: preliminarOwner.last_name }
+        : null;
+      item.message = preliminarOwner ? 'Unit without owners.' : 'No owners, invitees or registered for this unit.';
+    }
+    item.children = children;
+
     res.status(200).json({
       success: true,
       message: 'Unit updated',
-      data: unit,
+      data: item,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
