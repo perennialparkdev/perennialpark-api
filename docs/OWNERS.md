@@ -28,7 +28,7 @@
 |--------|------|-------------|------|
 | `POST` | `/api/owners/check-unit` | Validar acceso por número de unidad (usuario/contrasena = unit_number). Si la unidad ya tiene owner(s), no puede ingresar. | No |
 | `POST` | `/api/owners/signup` | Registrar usuario en Firebase Auth (email + contraseña). Devuelve `email` y `uid`. | No |
-| `POST` | `/api/owners/login` | Iniciar sesión con email y contraseña. Devuelve `token` (idToken), `owner` (datos husband/wife) y `unit` (unit_number, address) si está registrado como owner. | No |
+| `POST` | `/api/owners/login` | Iniciar sesión con email y contraseña. Devuelve `token` (idToken), `owner` (datos husband/wife + rol) y `unit` (unit_number, address) si está registrado como owner. | No |
 | `POST` | `/api/owners/complete-profile` | Formulario primario: unit, husband, wife, children. El email del token debe coincidir con husband_email o wife_email. Crea owner activo (status 1) y opcionalmente pendiente (status -1) con invitación por correo. | Sí (Bearer) |
 | `POST` | `/api/owners/invitation/validate` | Valida email + token de invitación; devuelve `missingFields` para el formulario dinámico del co-propietario. | No |
 | `POST` | `/api/owners/invitation/complete` | Completa perfil del owner pendiente: actualiza campos, crea usuario en Firebase y activa (status 1). | No |
@@ -212,7 +212,7 @@ Firebase Admin credentials not configured or invalid.
 - **Ruta**: `/api/owners/login`
 - **Content-Type**: `application/json`
 
-Autentica con Firebase (email + contraseña) y devuelve un **idToken**. El cliente debe guardar ese `token` y enviarlo en el header `Authorization: Bearer <token>` en todas las rutas protegidas. El middleware `verifyFirebaseToken` validará el token y dejará `req.user = { uid, email }`. Además, la API busca si el usuario está registrado como owner (OwnerHusbandUser u OwnerWifeUser) por `firebase_uid` y devuelve en `data.owner` los datos del owner (según sea husband o wife) y en `data.unit` los datos de la unidad asociada (`unit_number`, `address`). Si no existe registro de owner, `owner` y `unit` serán `null`.
+Autentica con Firebase (email + contraseña) y devuelve un **idToken**. El cliente debe guardar ese `token` y enviarlo en el header `Authorization: Bearer <token>` en todas las rutas protegidas. El middleware `verifyFirebaseToken` validará el token y dejará `req.user = { uid, email }`. Además, la API busca si el usuario está registrado como owner (OwnerHusbandUser u OwnerWifeUser) por `firebase_uid` y devuelve en `data.owner` los datos del owner (según sea husband o wife), incluyendo su **rol** (`role: { id, name }`), y en `data.unit` los datos de la unidad asociada (`unitId`, `unit_number`, `address`). Si no existe registro de owner, `owner` y `unit` serán `null`.
 
 #### Request body
 
@@ -244,9 +244,14 @@ Autentica con Firebase (email + contraseña) y devuelve un **idToken**. El clien
       "husband_first": "John",
       "husband_email": "propietario@ejemplo.com",
       "husband_phone": "+1 555 123 4567",
-      "last_name": "Smith"
+      "last_name": "Smith",
+      "role": {
+        "id": "69a4fe1d1c49fa661fecae12",
+        "name": "Regular User"
+      }
     },
     "unit": {
+      "unitId": "674a1b2c3d4e5f6789012345",
       "unit_number": "101",
       "address": "123 Main Street"
     }
@@ -254,7 +259,7 @@ Autentica con Firebase (email + contraseña) y devuelve un **idToken**. El clien
 }
 ```
 
-Si el usuario es **wife**, `owner` tendrá `ownerType: "wife"`, `wife_first`, `wife_email` y `last_name`. Si el usuario no está registrado como owner en MongoDB, `owner` y `unit` serán `null`.
+Si el usuario es **wife**, `owner` tendrá `ownerType: "wife"`, `wife_first`, `wife_email`, `last_name` y `role`. Si el usuario no está registrado como owner en MongoDB, `owner` y `unit` serán `null`.
 
 | Campo en `data` | Descripción |
 |-----------------|-------------|
@@ -262,8 +267,8 @@ Si el usuario es **wife**, `owner` tendrá `ownerType: "wife"`, `wife_first`, `w
 | `expiresIn` | Segundos hasta que el token expire (ej. 3600 = 1 hora). |
 | `uid` | Identificador del usuario en Firebase. |
 | `email` | Correo del usuario. |
-| `owner` | Objeto con datos del owner si está registrado en MongoDB: `ownerType` (`"husband"` o `"wife"`), y según el tipo: husband → `husband_first`, `husband_email`, `husband_phone`, `last_name`; wife → `wife_first`, `wife_email`, `last_name`. `null` si no es owner. |
-| `unit` | Objeto con `unit_number` y `address` de la unidad asociada al owner (`unitId`). `null` si no hay owner o no tiene unidad. |
+| `owner` | Objeto con datos del owner si está registrado en MongoDB: `ownerType` (`"husband"` o `"wife"`), campos de owner (husband\_/wife\_) y `role` con `{ id, name }` o `null` si no tiene rol asignado. `null` si no es owner. |
+| `unit` | Objeto con `unitId`, `unit_number` y `address` de la unidad asociada al owner. `null` si no hay owner o no tiene unidad. |
 
 #### Response 400 — Validation
 

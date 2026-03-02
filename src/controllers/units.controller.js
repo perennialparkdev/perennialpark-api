@@ -61,6 +61,7 @@ function buildOwnerUpdateFromBody(data, emailField, firstField, phoneField) {
   if (data[phoneField] !== undefined) out[phoneField] = trim(data[phoneField]);
   if (data.password !== undefined) out.password = data.password ? trim(data.password) : null;
   if (data.status !== undefined) out.status = data.status != null ? Number(data.status) : OWNER_STATUS.PENDING;
+  if (data.idRol !== undefined) out.idRol = data.idRol;
   return Object.keys(out).length ? out : null;
 }
 
@@ -155,6 +156,7 @@ unitsCtrl.list = async (req, res) => {
               husband_phone: husband.husband_phone,
               password: husband.password,
               status: husband.status,
+              idRol: husband.idRol,
             }
           : null;
         item.wife = wife
@@ -165,6 +167,7 @@ unitsCtrl.list = async (req, res) => {
               wife_phone: wife.wife_phone,
               password: wife.password,
               status: wife.status,
+              idRol: wife.idRol,
             }
           : null;
         item.message = null;
@@ -228,6 +231,7 @@ unitsCtrl.getById = async (req, res) => {
             husband_phone: husband.husband_phone,
             password: husband.password,
             status: husband.status,
+            idRol: husband.idRol,
           }
         : null;
       item.wife = wife
@@ -238,6 +242,7 @@ unitsCtrl.getById = async (req, res) => {
             wife_phone: wife.wife_phone,
             password: wife.password,
             status: wife.status,
+            idRol: wife.idRol,
           }
         : null;
       item.message = null;
@@ -344,6 +349,7 @@ unitsCtrl.update = async (req, res) => {
             husband_phone: husband.husband_phone,
             password: husband.password,
             status: husband.status,
+            idRol: husband.idRol,
           }
         : null;
       item.wife = wife
@@ -354,6 +360,7 @@ unitsCtrl.update = async (req, res) => {
             wife_phone: wife.wife_phone,
             password: wife.password,
             status: wife.status,
+            idRol: wife.idRol,
           }
         : null;
       item.message = null;
