@@ -5,7 +5,12 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "deduplicate": "node scripts/deduplicate.js",
+    "deduplicate:dry": "node scripts/deduplicate.js --dry-run",
+    "sync-owners": "node scripts/sync-owners-from-excel.js",
+    "create-husband-users": "node scripts/create-husband-firebase-users.js",
+    "create-husband-users:dry": "node scripts/create-husband-firebase-users.js --dry-run"
   },
   "keywords": [],
   "author": "",

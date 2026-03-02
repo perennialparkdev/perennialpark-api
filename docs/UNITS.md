@@ -28,8 +28,8 @@
 |--------|------|-------------|------|
 | `POST` | `/api/units` | Crear unidad y preliminar_owner (body: unit + preliminar_owner). | Sí (Owner Admin) |
 | `GET` | `/api/units` | Listar unidades con datos vinculados: unit, husband, wife, children, preliminarOwner y message según corresponda (opcional `?status=1` o `?status=2`). | Sí (Owner Admin) |
-| `GET` | `/api/units/:id` | Obtener una unidad por ID. | Sí (Owner Admin) |
-| `PATCH` | `/api/units/:id` | Editar unidad. | Sí (Owner Admin) |
+| `GET` | `/api/units/:id` | Obtener una unidad por ID con husband, wife, children y preliminarOwner (misma estructura que un ítem del list). | Sí (Owner Admin) |
+| `PATCH` | `/api/units/:id` | Editar unidad y/o husband, wife y children (body: unit, husband, wife, children; solo se actualizan los bloques enviados). | Sí (Owner Admin) |
 | `DELETE` | `/api/units/:id` | Eliminar unidad y todos los registros asociados (owners, children, preliminar_owners). | Sí (Owner Admin) |
 | `PATCH` | `/api/units/:id/activate` | Activar unidad (status = 1). | Sí (Owner Admin) |
 | `PATCH` | `/api/units/:id/anular` | Anular unidad (status = 2). | Sí (Owner Admin) |
@@ -144,7 +144,7 @@ Missing or invalid token, or user is not an admin owner.
 - **Ruta**: `/api/units`
 - **Query**: `status` (opcional) — `1` activo, `2` inactivo.
 
-Devuelve un array de objetos. Cada objeto incluye la **unit**, los **owners** vinculados por `unitId` (husband y/o wife con nombre, apellido, email, password), los **children** de esa unidad (name, age, genre) y, si la unidad no tiene owners, el **preliminarOwner** (si existe) y un **message** en inglés.
+Devuelve un array de objetos. Cada objeto incluye la **unit**, los **owners** vinculados por `unitId` (husband y/o wife con nombre, apellido, email, teléfono, password y **status**), los **children** de esa unidad (name, age, genre) y, si la unidad no tiene owners, el **preliminarOwner** (si existe) y un **message** en inglés.
 
 - **Si la unidad tiene al menos un owner (husband o wife):** `husband` y `wife` contienen los datos o `null`; `message` y `preliminarOwner` son `null`.
 - **Si la unidad no tiene owners:** se consulta PreliminarOwner; si existe, `preliminarOwner` tiene `husband_phone` y `last_name` y `message` es `"Unit without owners."`; si no existe preliminar, `preliminarOwner` es `null` y `message` es `"No owners, invitees or registered for this unit."`
@@ -174,13 +174,17 @@ Devuelve un array de objetos. Cada objeto incluye la **unit**, los **owners** vi
         "husband_first": "John",
         "last_name": "Smith",
         "husband_email": "john@example.com",
-        "password": "..."
+        "husband_phone": "+1234567890",
+        "password": "...",
+        "status": 1
       },
       "wife": {
         "wife_first": "Mary",
         "last_name": "Smith",
         "wife_email": "mary@example.com",
-        "password": null
+        "wife_phone": "+0987654321",
+        "password": null,
+        "status": -1
       },
       "message": null,
       "preliminarOwner": null,
@@ -204,8 +208,8 @@ Devuelve un array de objetos. Cada objeto incluye la **unit**, los **owners** vi
 | Campo en cada ítem de `data` | Descripción |
 |-----------------------------|-------------|
 | `unit` | Objeto con los datos de la unidad. |
-| `husband` | Objeto con `husband_first`, `last_name`, `husband_email`, `password` o `null` si no hay husband. |
-| `wife` | Objeto con `wife_first`, `last_name`, `wife_email`, `password` o `null` si no hay wife. |
+| `husband` | Objeto con `husband_first`, `last_name`, `husband_email`, `husband_phone`, `password`, `status` (-1 pending, 0 anulado, 1 activo) o `null` si no hay husband. |
+| `wife` | Objeto con `wife_first`, `last_name`, `wife_email`, `wife_phone`, `password`, `status` (-1 pending, 0 anulado, 1 activo) o `null` si no hay wife. |
 | `message` | `null` si hay owners; si no hay owners: `"Unit without owners."` (hay preliminar) o `"No owners, invitees or registered for this unit."` (no hay preliminar). |
 | `preliminarOwner` | `null` si hay owners; si no hay owners y existe PreliminarOwner: `{ husband_phone, last_name }`; si no existe: `null`. |
 | `children` | Array de `{ name, age, genre }` vinculados por `unitId`; puede ser `[]`. |
@@ -217,9 +221,23 @@ Devuelve un array de objetos. Cada objeto incluye la **unit**, los **owners** vi
 - **Método**: `GET`
 - **Ruta**: `/api/units/:id`
 
+Devuelve la misma estructura que un ítem del list: **unit**, **husband**, **wife**, **children**, **preliminarOwner** y **message** según corresponda (igual lógica que en list).
+
 #### Response 200
 
-Unit object.
+```json
+{
+  "success": true,
+  "data": {
+    "unit": { "_id": "...", "unit_number": "102", "address": "...", "city": "...", "state": "...", "zip": "...", "colony_name": "...", "notes": "...", "status": 1, "createdAt": "...", "updatedAt": "..." },
+    "husband": { "husband_first": "John", "last_name": "Smith", "husband_email": "john@example.com", "husband_phone": "+1234567890", "password": "...", "status": 1 },
+      "wife": { "wife_first": "Mary", "last_name": "Smith", "wife_email": "mary@example.com", "wife_phone": "+0987654321", "password": null, "status": -1 },
+    "message": null,
+    "preliminarOwner": null,
+    "children": [ { "name": "Emma", "age": 10, "genre": "Girl" } ]
+  }
+}
+```
 
 #### Response 404
 
@@ -236,25 +254,82 @@ Unit object.
 
 - **Método**: `PATCH`
 - **Ruta**: `/api/units/:id`
-- **Body**: Campos a actualizar (unit_number, address, city, state, zip, colony_name, notes, status).
+- **Body**: Se pueden enviar **unit**, **husband**, **wife** y/o **children**. Solo se actualizan los bloques presentes; dentro de cada bloque solo se modifican los campos enviados (actualización parcial). Si se envía `unit_number` y ya existe otra unidad con ese número, responde 409.
 
-#### Request body (ejemplo)
+#### Request body — bloques opcionales
+
+| Bloque | Campos | Descripción |
+|--------|--------|-------------|
+| `unit` (o campos en raíz) | `unit_number`, `address`, `city`, `state`, `zip`, `colony_name`, `notes`, `status` | Actualiza la Unit. |
+| `husband` | `husband_first`, `last_name`, `husband_email`, `husband_phone`, `password`, `status` | Actualiza o crea (upsert) el OwnerHusbandUser de esta unidad. |
+| `wife` | `wife_first`, `last_name`, `wife_email`, `wife_phone`, `password`, `status` | Actualiza o crea (upsert) el OwnerWifeUser de esta unidad. |
+| `children` | Array de `{ name, age, genre }` | Reemplaza la lista de hijos: se borran los actuales y se insertan los del array. Enviar `[]` deja la unidad sin hijos. |
+
+#### Request body (ejemplo — solo unidad)
 
 ```json
 {
-  "address": "789 New Street",
-  "city": "Manhattan",
-  "notes": "Updated notes"
+  "unit": {
+    "address": "789 New Street",
+    "city": "Manhattan",
+    "notes": "Updated notes"
+  }
+}
+```
+
+#### Request body (ejemplo — unidad + owners + children)
+
+```json
+{
+  "unit": {
+    "unit_number": "101",
+    "address": "123 Main St",
+    "city": "City",
+    "state": "ST",
+    "zip": "12345",
+    "colony_name": "North",
+    "notes": "",
+    "status": 1
+  },
+  "husband": {
+    "husband_first": "John",
+    "last_name": "Doe",
+    "husband_email": "john@example.com",
+    "husband_phone": "+1234567890",
+    "password": "plain-or-hashed",
+    "status": 1
+  },
+  "wife": {
+    "wife_first": "Jane",
+    "last_name": "Doe",
+    "wife_email": "jane@example.com",
+    "wife_phone": "+0987654321",
+    "password": "...",
+    "status": -1
+  },
+  "children": [
+    { "name": "Child1", "age": 8, "genre": "M" },
+    { "name": "Child2", "age": 5, "genre": "F" }
+  ]
 }
 ```
 
 #### Response 200
 
+`data` tiene la misma estructura que **getById**: `{ unit, husband, wife, children, preliminarOwner?, message? }`.
+
 ```json
 {
   "success": true,
   "message": "Unit updated",
-  "data": { ... }
+  "data": {
+    "unit": { ... },
+    "husband": { "husband_first": "John", "last_name": "Doe", "husband_email": "john@example.com", "husband_phone": "+1234567890", "password": "...", "status": 1 },
+    "wife": { "wife_first": "Jane", "last_name": "Doe", "wife_email": "jane@example.com", "wife_phone": "+0987654321", "password": "...", "status": -1 },
+    "message": null,
+    "preliminarOwner": null,
+    "children": [ { "name": "Child1", "age": 8, "genre": "M" }, { "name": "Child2", "age": 5, "genre": "F" } ]
+  }
 }
 ```
 
@@ -264,6 +339,17 @@ Unit object.
 {
   "success": false,
   "message": "Unit not found"
+}
+```
+
+#### Response 409 — unit_number ya existe
+
+Si se intenta cambiar `unit_number` a un valor que ya tiene otra unidad:
+
+```json
+{
+  "success": false,
+  "message": "A unit with this unit_number already exists"
 }
 ```
 
@@ -509,9 +595,13 @@ Failed to send email (Nodemailer).
 
 Se crea al crear una unidad y se elimina en cascada al eliminar la unidad.
 
-### Children (en list)
+### Husband / Wife (en list y getById)
 
-En la respuesta de **GET /api/units**, cada ítem incluye `children`: array de objetos con `name`, `age` y `genre`, vinculados a la unidad por `unitId`. Si la unidad no tiene hijos, `children` es `[]`. Modelo: `src/models/children.model.js`.
+En las respuestas de **GET /api/units** y **GET /api/units/:id**, `husband` y `wife` (cuando existen) incluyen: `husband_first`/`wife_first`, `last_name`, `husband_email`/`wife_email`, `husband_phone`/`wife_phone`, `password` y **`status`**. Valores de `status`: `-1` = pendiente, `0` = anulado, `1` = activo.
+
+### Children (en list y getById)
+
+En la respuesta de **GET /api/units** y **GET /api/units/:id**, cada ítem incluye `children`: array de objetos con `name`, `age` y `genre`, vinculados a la unidad por `unitId`. Si la unidad no tiene hijos, `children` es `[]`. Modelo: `src/models/children.model.js`.
 
 ### Rol (colección rol)
 
@@ -548,7 +638,7 @@ La unidad queda con sus campos (unit_number, address, etc.) intactos y puede vol
 ## 📘 Guía backend
 
 - **Rutas**: `src/routes/units.route.js` — todas protegidas con `requireOwnerAdmin` (verifyFirebaseToken + verifyOwnerAdmin).
-- **Controlador**: `src/controllers/units.controller.js` — create (Unit + PreliminarOwner), **list** (con filtro status; devuelve por cada unidad: unit, husband, wife, children, preliminarOwner y message según corresponda), getById, update, remove (cascada), activate, anular, **unlink** (elimina owners/children/preliminar, unit intacta), **resetPassword** (nueva contraseña = unit_number en Firebase y MongoDB), **sendInvitation** (reenvío con invitationToken existente, Nodemailer).
+- **Controlador**: `src/controllers/units.controller.js` — create (Unit + PreliminarOwner), **list** (con filtro status; devuelve por cada unidad: unit, husband, wife —con husband_phone/wife_phone y status—, children, preliminarOwner y message), **getById** (misma estructura que un ítem del list: unit + husband + wife + children + preliminarOwner/message), **update** (acepta unit, husband, wife y children; actualización parcial por bloques; devuelve el ítem completo), remove (cascada), activate, anular, **unlink** (elimina owners/children/preliminar, unit intacta), **resetPassword** (nueva contraseña = unit_number en Firebase y MongoDB), **sendInvitation** (reenvío con invitationToken existente, Nodemailer).
 - **Middleware**: `src/middlewares/verify-owner-admin.js` — comprueba que el usuario sea OwnerHusbandUser u OwnerWifeUser con `idRol` = ADMIN_ROL_ID (`69a4797d16285f80b89cb60b` o variable de entorno).
 - **Modelos**: Unit (`src/models/unit.model.js`), PreliminarOwner (`src/models/preliminar-owner.model.js`), Rol (`src/models/rol.model.js`). OwnerHusbandUser y OwnerWifeUser tienen `idRol` (ref Rol).
 - **Montaje**: En `app.js`, `app.use('/api/units', unitsRoutes)`.
@@ -598,7 +688,7 @@ if (data.success) {
 
 ### Listar unidades
 
-Cada ítem de `data` incluye `unit`, `husband`, `wife`, `children`, `preliminarOwner` y `message`. Usar `item.unit` para los datos de la unidad, `item.husband` / `item.wife` para owners vinculados y `item.children` para los hijos.
+Cada ítem de `data` incluye `unit`, `husband`, `wife` (con `status`: -1 pendiente, 0 anulado, 1 activo), `children`, `preliminarOwner` y `message`. Usar `item.unit` para los datos de la unidad, `item.husband` / `item.wife` para owners vinculados y `item.children` para los hijos.
 
 ```javascript
 const config = { headers: { Authorization: `Bearer ${token}` } };
@@ -611,8 +701,8 @@ const soloInactivas = await axios.get(`${API_URL}/api/units?status=2`, config);
 if (data.success && data.data.length) {
   const first = data.data[0];
   console.log('Unit:', first.unit.unit_number, first.unit.address);
-  console.log('Husband:', first.husband?.husband_first, first.husband?.husband_email);
-  console.log('Wife:', first.wife?.wife_first, first.wife?.wife_email);
+  console.log('Husband:', first.husband?.husband_first, first.husband?.husband_email, 'status:', first.husband?.status);
+  console.log('Wife:', first.wife?.wife_first, first.wife?.wife_email, 'status:', first.wife?.status);
   console.log('Children:', first.children);
   if (first.message) console.log('Message:', first.message);
 }
@@ -620,16 +710,39 @@ if (data.success && data.data.length) {
 
 ### Obtener una unidad
 
+La respuesta tiene la misma estructura que un ítem del list: `data.unit`, `data.husband`, `data.wife`, `data.children`, `data.preliminarOwner`, `data.message`.
+
 ```javascript
-const unit = await axios.get(`${API_URL}/api/units/${id}`, config);
+const { data } = await axios.get(`${API_URL}/api/units/${id}`, config);
+if (data.success) {
+  console.log('Unit:', data.data.unit);
+  console.log('Husband:', data.data.husband?.husband_first, data.data.husband?.status);
+  console.log('Wife:', data.data.wife?.wife_first, data.data.wife?.status);
+  console.log('Children:', data.data.children);
+}
 ```
 
-### Editar unidad
+### Editar unidad (y/o husband, wife, children)
+
+Puedes enviar solo los bloques que quieras actualizar. La respuesta devuelve el ítem completo (unit + husband + wife + children).
 
 ```javascript
+// Solo datos de la unidad
 await axios.patch(
   `${API_URL}/api/units/${id}`,
-  { address: '789 New St', city: 'Manhattan', notes: 'Updated' },
+  { unit: { address: '789 New St', city: 'Manhattan', notes: 'Updated' } },
+  config
+);
+
+// Unidad + owners + children
+await axios.patch(
+  `${API_URL}/api/units/${id}`,
+  {
+    unit: { unit_number: '101', address: '123 Main St', city: 'City', state: 'ST', zip: '12345', status: 1 },
+    husband: { husband_first: 'John', last_name: 'Doe', husband_email: 'john@example.com', husband_phone: '+1234567890', status: 1 },
+    wife: { wife_first: 'Jane', last_name: 'Doe', wife_email: 'jane@example.com', wife_phone: '+0987654321', status: -1 },
+    children: [ { name: 'Child1', age: 8, genre: 'M' }, { name: 'Child2', age: 5, genre: 'F' } ],
+  },
   config
 );
 ```
@@ -692,4 +805,7 @@ await axios.post(
 | **PATCH /api/units/:id/unlink** | Desvincular: elimina owners, children y preliminar_owners; la Unit no se modifica (queda huérfana). |
 | **POST /api/units/:id/owners/reset-password** | Body `{ email }`. Nueva contraseña = unit_number; actualiza Firebase (si tiene firebase_uid) y campo password en MongoDB. |
 | **POST /api/units/:id/owners/send-invitation** | Body `{ email }`. Reenvía correo de invitación (inglés, Nodemailer) a owner con status -1 usando su invitationToken existente. |
-| **GET /api/units (list)** | Devuelve array de objetos enriquecidos: cada ítem tiene `unit`, `husband`, `wife`, `children`, `preliminarOwner` y `message`. Si no hay owners, se consulta PreliminarOwner y se devuelve mensaje en inglés. |
+| **GET /api/units (list)** | Devuelve array de objetos enriquecidos: cada ítem tiene `unit`, `husband`, `wife` (con `status`: -1/0/1), `children`, `preliminarOwner` y `message`. Si no hay owners, se consulta PreliminarOwner y se devuelve mensaje en inglés. |
+| **GET /api/units/:id (getById)** | Devuelve la misma estructura que un ítem del list: unit, husband, wife, children, preliminarOwner y message. |
+| **PATCH /api/units/:id (update)** | Acepta body con `unit`, `husband`, `wife` y/o `children`; solo actualiza los bloques enviados (parcial). Husband/wife: upsert por unitId (incluye husband_phone, wife_phone). Children: reemplazo completo del array. Respuesta 409 si `unit_number` ya existe en otra unidad. Devuelve el ítem completo en `data`. |
+| **Husband / Wife en respuestas** | En list, getById y update, los objetos `husband` y `wife` incluyen `husband_phone` y `wife_phone` además de nombre, email, password y status. |

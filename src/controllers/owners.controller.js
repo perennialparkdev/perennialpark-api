@@ -223,13 +223,16 @@ ownersCtrl.login = async (req, res) => {
 
     const uid = data.localId;
     const [husband, wife] = await Promise.all([
-      OwnerHusbandUser.findOne({ firebase_uid: uid }),
-      OwnerWifeUser.findOne({ firebase_uid: uid }),
+      OwnerHusbandUser.findOne({ firebase_uid: uid }).populate('idRol').lean(),
+      OwnerWifeUser.findOne({ firebase_uid: uid }).populate('idRol').lean(),
     ]);
     const owner = husband || wife;
     let ownerData = null;
     let unitData = null;
     if (owner) {
+      const role = owner.idRol
+        ? { id: owner.idRol._id, name: owner.idRol.name }
+        : null;
       if (husband) {
         ownerData = {
           ownerType: 'husband',
@@ -237,6 +240,7 @@ ownersCtrl.login = async (req, res) => {
           husband_email: husband.husband_email,
           husband_phone: husband.husband_phone,
           last_name: husband.last_name,
+          role,
         };
       } else {
         ownerData = {
@@ -244,12 +248,13 @@ ownersCtrl.login = async (req, res) => {
           wife_first: wife.wife_first,
           wife_email: wife.wife_email,
           last_name: wife.last_name,
+          role,
         };
       }
       if (owner.unitId) {
         const unit = await Unit.findById(owner.unitId).select('unit_number address').lean();
         if (unit) {
-          unitData = { unit_number: unit.unit_number, address: unit.address };
+          unitData = { unitId: unit._id, unit_number: unit.unit_number, address: unit.address };
         }
       }
     }
@@ -337,6 +342,17 @@ ownersCtrl.completeProfile = async (req, res) => {
         colony_name: trim(unitData.colony_name),
         notes: trim(unitData.notes),
       });
+    } else {
+      const unitUpdate = {};
+      if (unitData.address !== undefined) unitUpdate.address = trim(unitData.address);
+      if (unitData.city !== undefined) unitUpdate.city = trim(unitData.city);
+      if (unitData.state !== undefined) unitUpdate.state = trim(unitData.state);
+      if (unitData.zip !== undefined) unitUpdate.zip = trim(unitData.zip);
+      if (unitData.colony_name !== undefined) unitUpdate.colony_name = trim(unitData.colony_name);
+      if (unitData.notes !== undefined) unitUpdate.notes = trim(unitData.notes);
+      if (Object.keys(unitUpdate).length > 0) {
+        unit = await Unit.findByIdAndUpdate(unit._id, { $set: unitUpdate }, { new: true });
+      }
     }
     const unitId = unit._id;
 
