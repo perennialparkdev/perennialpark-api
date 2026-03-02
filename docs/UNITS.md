@@ -15,9 +15,9 @@
 
 | Aspecto | Detalle |
 |--------|---------|
-| **Auth** | **Todas** las rutas de units requieren **Firebase ID Token** y que el usuario sea un **owner (husband o wife) con idRol de administrador**. |
+| **Auth** | **Todas** las rutas de units requieren **Firebase ID Token** y que el usuario sea un **owner** (husband o wife) registrado. |
 | **Token** | Header `Authorization: Bearer <idToken>`. El token se obtiene en `POST /api/owners/login`. |
-| **Rol admin** | Solo owners (OwnerHusbandUser u OwnerWifeUser) cuyo `idRol` sea el ObjectId del rol administrador (`69a4797d16285f80b89cb60b` o `ADMIN_ROL_ID` en .env) pueden acceder al CRUD de units. |
+| **Rol admin** | Algunas acciones (crear/eliminar unidad, activar/anular, reset de password y envío de invitaciones) requieren además que el `idRol` del owner sea el ObjectId del rol administrador (`69a4797d16285f80b89cb60b` o `ADMIN_ROL_ID` en .env). |
 | **Headers** | `Content-Type: application/json` para body; `Authorization: Bearer <token>` obligatorio. |
 
 ---
@@ -27,9 +27,9 @@
 | Método | Ruta | Descripción | Auth |
 |--------|------|-------------|------|
 | `POST` | `/api/units` | Crear unidad y preliminar_owner (body: unit + preliminar_owner). | Sí (Owner Admin) |
-| `GET` | `/api/units` | Listar unidades con datos vinculados: unit, husband, wife, children, preliminarOwner y message según corresponda (opcional `?status=1` o `?status=2`). | Sí (Owner Admin) |
-| `GET` | `/api/units/:id` | Obtener una unidad por ID con husband, wife, children y preliminarOwner (misma estructura que un ítem del list). | Sí (Owner Admin) |
-| `PATCH` | `/api/units/:id` | Editar unidad y/o husband, wife y children (body: unit, husband, wife, children; solo se actualizan los bloques enviados). | Sí (Owner Admin) |
+| `GET` | `/api/units` | Listar unidades con datos vinculados: unit, husband, wife, children, preliminarOwner y message según corresponda (opcional `?status=1` o `?status=2`). | Sí (Owner — cualquier rol) |
+| `GET` | `/api/units/:id` | Obtener una unidad por ID con husband, wife, children y preliminarOwner (misma estructura que un ítem del list). | Sí (Owner — cualquier rol) |
+| `PATCH` | `/api/units/:id` | Editar unidad y/o husband, wife y children (body: unit, husband, wife, children; solo se actualizan los bloques enviados). | Sí (Owner — cualquier rol) |
 | `DELETE` | `/api/units/:id` | Eliminar unidad y todos los registros asociados (owners, children, preliminar_owners). | Sí (Owner Admin) |
 | `PATCH` | `/api/units/:id/activate` | Activar unidad (status = 1). | Sí (Owner Admin) |
 | `PATCH` | `/api/units/:id/anular` | Anular unidad (status = 2). | Sí (Owner Admin) |
@@ -144,7 +144,7 @@ Missing or invalid token, or user is not an admin owner.
 - **Ruta**: `/api/units`
 - **Query**: `status` (opcional) — `1` activo, `2` inactivo.
 
-Devuelve un array de objetos. Cada objeto incluye la **unit**, los **owners** vinculados por `unitId` (husband y/o wife con nombre, apellido, email, teléfono, password y **status**), los **children** de esa unidad (name, age, genre) y, si la unidad no tiene owners, el **preliminarOwner** (si existe) y un **message** en inglés.
+Devuelve un array de objetos. Cada objeto incluye la **unit**, los **owners** vinculados por `unitId` (husband y/o wife con nombre, apellido, email, teléfono, password, **status** e **idRol**), los **children** de esa unidad (name, age, genre) y, si la unidad no tiene owners, el **preliminarOwner** (si existe) y un **message** en inglés.
 
 - **Si la unidad tiene al menos un owner (husband o wife):** `husband` y `wife` contienen los datos o `null`; `message` y `preliminarOwner` son `null`.
 - **Si la unidad no tiene owners:** se consulta PreliminarOwner; si existe, `preliminarOwner` tiene `husband_phone` y `last_name` y `message` es `"Unit without owners."`; si no existe preliminar, `preliminarOwner` es `null` y `message` es `"No owners, invitees or registered for this unit."`
@@ -176,7 +176,8 @@ Devuelve un array de objetos. Cada objeto incluye la **unit**, los **owners** vi
         "husband_email": "john@example.com",
         "husband_phone": "+1234567890",
         "password": "...",
-        "status": 1
+        "status": 1,
+        "idRol": "69a4fe1d1c49fa661fecae12"
       },
       "wife": {
         "wife_first": "Mary",
@@ -184,7 +185,8 @@ Devuelve un array de objetos. Cada objeto incluye la **unit**, los **owners** vi
         "wife_email": "mary@example.com",
         "wife_phone": "+0987654321",
         "password": null,
-        "status": -1
+        "status": -1,
+        "idRol": "69a4fe1d1c49fa661fecae12"
       },
       "message": null,
       "preliminarOwner": null,
@@ -208,8 +210,8 @@ Devuelve un array de objetos. Cada objeto incluye la **unit**, los **owners** vi
 | Campo en cada ítem de `data` | Descripción |
 |-----------------------------|-------------|
 | `unit` | Objeto con los datos de la unidad. |
-| `husband` | Objeto con `husband_first`, `last_name`, `husband_email`, `husband_phone`, `password`, `status` (-1 pending, 0 anulado, 1 activo) o `null` si no hay husband. |
-| `wife` | Objeto con `wife_first`, `last_name`, `wife_email`, `wife_phone`, `password`, `status` (-1 pending, 0 anulado, 1 activo) o `null` si no hay wife. |
+| `husband` | Objeto con `husband_first`, `last_name`, `husband_email`, `husband_phone`, `password`, `status` (-1 pending, 0 anulado, 1 activo), `idRol` (ObjectId de Rol) o `null` si no hay husband. |
+| `wife` | Objeto con `wife_first`, `last_name`, `wife_email`, `wife_phone`, `password`, `status` (-1 pending, 0 anulado, 1 activo), `idRol` (ObjectId de Rol) o `null` si no hay wife. |
 | `message` | `null` si hay owners; si no hay owners: `"Unit without owners."` (hay preliminar) o `"No owners, invitees or registered for this unit."` (no hay preliminar). |
 | `preliminarOwner` | `null` si hay owners; si no hay owners y existe PreliminarOwner: `{ husband_phone, last_name }`; si no existe: `null`. |
 | `children` | Array de `{ name, age, genre }` vinculados por `unitId`; puede ser `[]`. |
@@ -221,7 +223,7 @@ Devuelve un array de objetos. Cada objeto incluye la **unit**, los **owners** vi
 - **Método**: `GET`
 - **Ruta**: `/api/units/:id`
 
-Devuelve la misma estructura que un ítem del list: **unit**, **husband**, **wife**, **children**, **preliminarOwner** y **message** según corresponda (igual lógica que en list).
+Devuelve la misma estructura que un ítem del list: **unit**, **husband**, **wife**, **children**, **preliminarOwner** y **message** según corresponda (igual lógica que en list, incluyendo `idRol` para husband y wife).
 
 #### Response 200
 
@@ -230,8 +232,8 @@ Devuelve la misma estructura que un ítem del list: **unit**, **husband**, **wif
   "success": true,
   "data": {
     "unit": { "_id": "...", "unit_number": "102", "address": "...", "city": "...", "state": "...", "zip": "...", "colony_name": "...", "notes": "...", "status": 1, "createdAt": "...", "updatedAt": "..." },
-    "husband": { "husband_first": "John", "last_name": "Smith", "husband_email": "john@example.com", "husband_phone": "+1234567890", "password": "...", "status": 1 },
-      "wife": { "wife_first": "Mary", "last_name": "Smith", "wife_email": "mary@example.com", "wife_phone": "+0987654321", "password": null, "status": -1 },
+    "husband": { "husband_first": "John", "last_name": "Smith", "husband_email": "john@example.com", "husband_phone": "+1234567890", "password": "...", "status": 1, "idRol": "69a4fe1d1c49fa661fecae12" },
+    "wife": { "wife_first": "Mary", "last_name": "Smith", "wife_email": "mary@example.com", "wife_phone": "+0987654321", "password": null, "status": -1, "idRol": "69a4fe1d1c49fa661fecae12" },
     "message": null,
     "preliminarOwner": null,
     "children": [ { "name": "Emma", "age": 10, "genre": "Girl" } ]
@@ -261,8 +263,8 @@ Devuelve la misma estructura que un ítem del list: **unit**, **husband**, **wif
 | Bloque | Campos | Descripción |
 |--------|--------|-------------|
 | `unit` (o campos en raíz) | `unit_number`, `address`, `city`, `state`, `zip`, `colony_name`, `notes`, `status` | Actualiza la Unit. |
-| `husband` | `husband_first`, `last_name`, `husband_email`, `husband_phone`, `password`, `status` | Actualiza o crea (upsert) el OwnerHusbandUser de esta unidad. |
-| `wife` | `wife_first`, `last_name`, `wife_email`, `wife_phone`, `password`, `status` | Actualiza o crea (upsert) el OwnerWifeUser de esta unidad. |
+| `husband` | `husband_first`, `last_name`, `husband_email`, `husband_phone`, `password`, `status`, `idRol` | Actualiza o crea (upsert) el OwnerHusbandUser de esta unidad. Si se envía `idRol`, actualiza el rol del husband. |
+| `wife` | `wife_first`, `last_name`, `wife_email`, `wife_phone`, `password`, `status`, `idRol` | Actualiza o crea (upsert) el OwnerWifeUser de esta unidad. Si se envía `idRol`, actualiza el rol de la wife. |
 | `children` | Array de `{ name, age, genre }` | Reemplaza la lista de hijos: se borran los actuales y se insertan los del array. Enviar `[]` deja la unidad sin hijos. |
 
 #### Request body (ejemplo — solo unidad)
@@ -297,7 +299,8 @@ Devuelve la misma estructura que un ítem del list: **unit**, **husband**, **wif
     "husband_email": "john@example.com",
     "husband_phone": "+1234567890",
     "password": "plain-or-hashed",
-    "status": 1
+    "status": 1,
+    "idRol": "69a4fe1d1c49fa661fecae12"
   },
   "wife": {
     "wife_first": "Jane",
@@ -305,7 +308,8 @@ Devuelve la misma estructura que un ítem del list: **unit**, **husband**, **wif
     "wife_email": "jane@example.com",
     "wife_phone": "+0987654321",
     "password": "...",
-    "status": -1
+    "status": -1,
+    "idRol": "69a4fe1d1c49fa661fecae12"
   },
   "children": [
     { "name": "Child1", "age": 8, "genre": "M" },
@@ -316,7 +320,7 @@ Devuelve la misma estructura que un ítem del list: **unit**, **husband**, **wif
 
 #### Response 200
 
-`data` tiene la misma estructura que **getById**: `{ unit, husband, wife, children, preliminarOwner?, message? }`.
+`data` tiene la misma estructura que **getById**: `{ unit, husband, wife, children, preliminarOwner?, message? }` (incluyendo `idRol` en husband y wife).
 
 ```json
 {
