@@ -10,7 +10,7 @@ const OwnerHusbandUser = require('../models/owner-husband-user.model');
 const OwnerWifeUser = require('../models/owner-wife-user.model');
 const Children = require('../models/children.model');
 const { getAuth, getInitError } = require('../config/firebase');
-const { sendOwnerInvitationEmail } = require('../services/mail.service');
+const { sendOwnerInvitationEmail, sendPasswordResetEmail } = require('../services/mail.service');
 
 const ownersCtrl = {};
 
@@ -620,6 +620,299 @@ ownersCtrl.completeInvitation = async (req, res) => {
       success: false,
       message: error.message || 'Internal server error',
     });
+  }
+};
+
+/**
+ * Base URL for password reset link (form page). Fallback to localhost when not set.
+ */
+function getPasswordResetBaseUrl() {
+  const base =
+    process.env.APP_PUBLIC_URL ||
+    process.env.PASSWORD_RESET_BASE_URL ||
+    (process.env.NODE_ENV === 'production' ? 'https://perennialpark-api.onrender.com' : 'http://localhost:5000');
+  return base.replace(/\/$/, '');
+}
+
+/**
+ * Escapa HTML para evitar XSS en vistas MVC.
+ */
+function escapeHtml(s) {
+  if (s == null) return '';
+  const str = String(s);
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Página HTML estilo Perennial Park (card blanca, verde, fondo claro).
+ */
+function renderResetFormPage(options) {
+  const { title, subtitle, formHtml, extraHtml = '' } = options;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)} - Perennial Park</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #e8f4ec 0%, #d4e9dc 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 40px; max-width: 420px; width: 100%; }
+    .brand { color: #2d7a3e; font-size: 1.5rem; font-weight: 700; margin-bottom: 24px; text-align: center; }
+    h1 { font-size: 1.25rem; font-weight: 600; color: #1a1a1a; margin: 0 0 6px 0; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 24px; }
+    label { display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 6px; }
+    input[type="password"], input[type="text"] { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 1rem; margin-bottom: 16px; }
+    input:focus { outline: none; border-color: #2d7a3e; }
+    .btn { width: 100%; padding: 12px; background: #2d7a3e; color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+    .btn:hover { background: #246830; }
+    .message { margin-top: 16px; padding: 12px; border-radius: 8px; font-size: 0.875rem; }
+    .message.error { background: #fef2f2; color: #b91c1c; }
+    .message.success { background: #ecfdf5; color: #047857; }
+    .link { margin-top: 20px; text-align: center; font-size: 0.875rem; color: #6b7280; }
+    .link a { color: #2d7a3e; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">Perennial Park</div>
+    <h1>${escapeHtml(title)}</h1>
+    <p class="subtitle">${escapeHtml(subtitle)}</p>
+    ${formHtml}
+    ${extraHtml}
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * POST /api/owners/password-request
+ * Body: { email }. Busca owner activo con ese email, genera resetToken, guarda y envía correo con enlace al formulario.
+ */
+ownersCtrl.passwordRequest = async (req, res) => {
+  try {
+    const email = trim(req.body?.email);
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'email is required',
+      });
+    }
+
+    const [husband, wife] = await Promise.all([
+      OwnerHusbandUser.findOne({ husband_email: email, status: STATUS.ACTIVO }),
+      OwnerWifeUser.findOne({ wife_email: email, status: STATUS.ACTIVO }),
+    ]);
+    const owner = husband || wife;
+    if (!owner || !owner.firebase_uid) {
+      res.status(200).json({
+        success: true,
+        message: 'If an account exists with this email, you will receive a link to reset your password.',
+      });
+      return;
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const baseUrl = getPasswordResetBaseUrl();
+    const resetLink = `${baseUrl}/api/owners/password-reset-form?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
+
+    if (husband) {
+      await OwnerHusbandUser.findByIdAndUpdate(owner._id, { $set: { resetToken: token } });
+    } else {
+      await OwnerWifeUser.findByIdAndUpdate(owner._id, { $set: { resetToken: token } });
+    }
+
+    const recipientName = husband ? owner.husband_first : owner.wife_first;
+    const mailResult = await sendPasswordResetEmail(email, recipientName, resetLink);
+    if (!mailResult.success) {
+      console.error('Password reset email error:', mailResult.error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send reset email. Please try again later.',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'If an account exists with this email, you will receive a link to reset your password.',
+    });
+  } catch (error) {
+    console.error('Owners passwordRequest error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Internal server error' });
+  }
+};
+
+/**
+ * GET /api/owners/password-reset-form?token=...&email=...
+ * Sirve la página MVC con el formulario para nueva contraseña (estilo Perennial Park).
+ */
+ownersCtrl.passwordResetForm = async (req, res) => {
+  try {
+    const token = trim(req.query?.token);
+    const email = trim(req.query?.email);
+    if (!token || !email) {
+      const html = renderResetFormPage({
+        title: 'Invalid link',
+        subtitle: 'Missing token or email.',
+        formHtml: '<p class="message error">This link is invalid. Please request a new password reset from the app.</p>',
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(400).send(html);
+    }
+
+    const [husband, wife] = await Promise.all([
+      OwnerHusbandUser.findOne({ husband_email: email, resetToken: token }),
+      OwnerWifeUser.findOne({ wife_email: email, resetToken: token }),
+    ]);
+    const owner = husband || wife;
+    if (!owner) {
+      const html = renderResetFormPage({
+        title: 'Invalid or expired link',
+        subtitle: 'This reset link is invalid or has already been used.',
+        formHtml: '<p class="message error">Please request a new password reset from the app.</p>',
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(400).send(html);
+    }
+
+    const formHtml = `
+    <form method="post" action="/api/owners/password-reset-form" id="resetForm">
+      <input type="hidden" name="token" value="${escapeHtml(token)}">
+      <input type="hidden" name="email" value="${escapeHtml(email)}">
+      <label for="password">New password</label>
+      <input type="password" id="password" name="password" minlength="6" required placeholder="Enter new password">
+      <label for="passwordConfirm">Confirm password</label>
+      <input type="password" id="passwordConfirm" name="passwordConfirm" minlength="6" required placeholder="Confirm new password">
+      <button type="submit" class="btn">Reset Password</button>
+    </form>
+    <script>
+      document.getElementById('resetForm').addEventListener('submit', function(e) {
+        var p = document.getElementById('password').value;
+        var c = document.getElementById('passwordConfirm').value;
+        if (p !== c) { e.preventDefault(); alert('Passwords do not match.'); return false; }
+        if (p.length < 6) { e.preventDefault(); alert('Password must be at least 6 characters.'); return false; }
+      });
+    </script>`;
+
+    const html = renderResetFormPage({
+      title: 'Reset Password',
+      subtitle: 'Enter your new password below.',
+      formHtml,
+    });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.status(200).send(html);
+  } catch (error) {
+    console.error('Owners passwordResetForm error:', error);
+    res.status(500).send('<p>Something went wrong. Please try again later.</p>');
+  }
+};
+
+/**
+ * POST /api/owners/password-reset-form
+ * Body (form): email, token, password, passwordConfirm. Actualiza contraseña en MongoDB y Firebase y limpia resetToken.
+ */
+ownersCtrl.passwordResetSubmit = async (req, res) => {
+  try {
+    const email = trim(req.body?.email);
+    const token = trim(req.body?.token);
+    const password = String(req.body?.password || '').trim();
+    const passwordConfirm = String(req.body?.passwordConfirm || '').trim();
+
+    if (!email || !token || !password) {
+      const html = renderResetFormPage({
+        title: 'Reset Password',
+        subtitle: 'Enter your new password below.',
+        formHtml: '<p class="message error">Email, token and password are required.</p>',
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(400).send(html);
+    }
+    if (password.length < 6) {
+      const html = renderResetFormPage({
+        title: 'Reset Password',
+        subtitle: 'Enter your new password below.',
+        formHtml: '<p class="message error">Password must be at least 6 characters.</p>',
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(400).send(html);
+    }
+    if (password !== passwordConfirm) {
+      const html = renderResetFormPage({
+        title: 'Reset Password',
+        subtitle: 'Enter your new password below.',
+        formHtml: '<p class="message error">Passwords do not match.</p>',
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(400).send(html);
+    }
+
+    const [husband, wife] = await Promise.all([
+      OwnerHusbandUser.findOne({ husband_email: email, resetToken: token }),
+      OwnerWifeUser.findOne({ wife_email: email, resetToken: token }),
+    ]);
+    const owner = husband || wife;
+    if (!owner) {
+      const html = renderResetFormPage({
+        title: 'Invalid or expired link',
+        subtitle: 'This reset link is invalid or has already been used.',
+        formHtml: '<p class="message error">Please request a new password reset from the app.</p>',
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(400).send(html);
+    }
+
+    const auth = getAuth();
+    if (!auth) {
+      const html = renderResetFormPage({
+        title: 'Error',
+        subtitle: 'Service temporarily unavailable.',
+        formHtml: '<p class="message error">Authentication service is not available. Please try again later.</p>',
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(503).send(html);
+    }
+
+    try {
+      await auth.updateUser(owner.firebase_uid, { password });
+    } catch (err) {
+      console.error('Firebase updateUser password error:', err);
+      const html = renderResetFormPage({
+        title: 'Error',
+        subtitle: 'Could not update password.',
+        formHtml: '<p class="message error">We could not update your password. Please try again or contact support.</p>',
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(500).send(html);
+    }
+
+    if (husband) {
+      await OwnerHusbandUser.findByIdAndUpdate(owner._id, {
+        $set: { password },
+        $unset: { resetToken: '' },
+      });
+    } else {
+      await OwnerWifeUser.findByIdAndUpdate(owner._id, {
+        $set: { password },
+        $unset: { resetToken: '' },
+      });
+    }
+
+    const html = renderResetFormPage({
+      title: 'Password updated',
+      subtitle: 'Your password has been changed successfully.',
+      formHtml: '<p class="message success">You can now sign in with your new password.</p>',
+      extraHtml: '<p class="link"><a href="/">Back to Perennial Park</a></p>',
+    });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.status(200).send(html);
+  } catch (error) {
+    console.error('Owners passwordResetSubmit error:', error);
+    res.status(500).send('<p>Something went wrong. Please try again later.</p>');
   }
 };
 

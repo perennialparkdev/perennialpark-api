@@ -126,7 +126,67 @@ async function sendOwnerInvitationEmail(toEmail, recipientName, invitationToken)
   return result.success ? { success: true } : { success: false, error: result.error };
 }
 
+/**
+ * Envía correo para cambio de contraseña con enlace al formulario MVC.
+ * @param {string} toEmail - Correo del owner
+ * @param {string} recipientName - Nombre para el saludo (ej. first name)
+ * @param {string} resetLink - URL completa al formulario (query token + email)
+ * @returns {Promise<{ success: boolean, error?: string }>}
+ */
+async function sendPasswordResetEmail(toEmail, recipientName, resetLink) {
+  if (!toEmail || !resetLink) {
+    return { success: false, error: 'Missing toEmail or resetLink' };
+  }
+  const name = (recipientName || toEmail.split('@')[0] || 'there').trim();
+  const firstName = name.split(' ')[0];
+  const subject = 'Reset your PerennialPark password';
+
+  const text = [
+    `Hello ${firstName},`,
+    '',
+    'You requested a password change for your PerennialPark owner account.',
+    'Click the link below to set a new password (or copy and paste it into your browser):',
+    '',
+    resetLink,
+    '',
+    'If you did not request this change, you can safely ignore this email.',
+    '',
+    'Best regards,',
+    'The PerennialPark Team',
+  ].join('\n');
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #333; max-width: 600px; margin: 0 auto;">
+  <div style="padding: 24px;">
+    <p style="margin: 0 0 16px;">Hello ${firstName},</p>
+    <p style="margin: 0 0 16px;">You requested a password change for your PerennialPark owner account.</p>
+    <p style="margin: 0 0 16px;">Click the link below to set a new password:</p>
+    <p style="margin: 16px 0;"><a href="${resetLink}" style="color: #2d7a3e; word-break: break-all;">${resetLink}</a></p>
+    <p style="margin: 0 0 24px;">If you did not request this change, you can safely ignore this email.</p>
+    <p style="margin: 0; color: #666;">Best regards,<br>The PerennialPark Team</p>
+  </div>
+</body>
+</html>
+`.trim();
+
+  const result = await sendMail({
+    to: toEmail.trim(),
+    subject,
+    text,
+    html,
+  });
+  return result.success ? { success: true } : { success: false, error: result.error };
+}
+
 module.exports = {
   sendTestEmail,
   sendOwnerInvitationEmail,
+  sendPasswordResetEmail,
 };

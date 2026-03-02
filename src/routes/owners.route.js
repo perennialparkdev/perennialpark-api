@@ -19,4 +19,8 @@ router.post('/complete-profile', verifyFirebaseToken, ownersController.completeP
 router.post('/invitation/validate', ownersController.validateInvitation);
 router.post('/invitation/complete', ownersController.completeInvitation);
 
+router.post('/password-request', ownersController.passwordRequest);
+router.get('/password-reset-form', ownersController.passwordResetForm);
+router.post('/password-reset-form', ownersController.passwordResetSubmit);
+
 module.exports = router;

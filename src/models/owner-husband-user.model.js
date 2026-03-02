@@ -19,6 +19,7 @@ const ownerHusbandUserSchema = new mongoose.Schema(
     last_name: { type: String, default: null },
     password: { type: String, default: null },
     invitationToken: { type: String, default: null },
+    resetToken: { type: String, default: null },
   },
   { timestamps: true }
 );

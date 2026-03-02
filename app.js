@@ -20,6 +20,7 @@ const meetingsRoutes = require('./src/routes/meetings.route');
 const app = express();
 
 app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 
 if (process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID) {
