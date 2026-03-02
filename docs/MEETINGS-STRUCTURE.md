@@ -1,56 +1,106 @@
-# 📂 Estructura de reuniones y anuncios — Categories, Types y Models
+# 📂 API de Meetings & Announcements - Documentación
 
-Documentación de la jerarquía **Category → Type → Meeting** (o modelo especial). Incluye cómo funcionan las categorías, los tipos y cada modelo de reunión/anuncio, y a qué Type o Category pertenecen.
+Documentación de la API de **reuniones y anuncios** basada en la jerarquía  
+**Category → Type → Meeting (o modelo especial)**.
+
+Incluye:
+- Cómo se asegura y quién puede usar las rutas.
+- Resumen de endpoints.
+- Detalle de `/structure` y del CRUD por `modelKey`.
+- Estructura de datos (Categories, Types, modelos y seed).
+- Guía backend y guía frontend.
 
 ---
 
 ## Índice
 
-- [Resumen de la jerarquía](#-resumen-de-la-jerarquía)
-- [API de reuniones y anuncios](#-api-de-reuniones-y-anuncios)
-- [Categories](#-categories)
-- [Types](#-types)
-- [Modelos de reuniones y anuncios](#-modelos-de-reuniones-y-anuncios)
-- [Script de seed](#-script-de-seed)
-- [Referencia rápida](#-referencia-rápida)
+- [Seguridad y autenticación](#-seguridad-y-autenticación)
+- [Resumen de endpoints](#-resumen-de-endpoints)
+- [Endpoints detallados](#-endpoints-detallados)
+- [Estructura de datos](#-estructura-de-datos)
+- [Guía backend](#-guía-backend)
+- [Guía frontend](#-guía-frontend)
+- [Orden del flujo (ejemplo)](#-orden-del-flujo-ejemplo)
+- [Registro de cambios](#-registro-de-cambios)
 
 ---
 
-## 🔗 Resumen de la jerarquía
+## 🔐 Seguridad y autenticación
 
-```
-Category (ej. Minyanim, Shabbos, Shiurim, Announcements)
-    └── Type (ej. Shachris + Monday-thursday, Daf Yomi + wednesday-friday)
-            └── Meeting | ShabbosMevorchimMeeting | DafYomiMeeting | ... (según el tipo)
-```
-
-- Una **reunión** o **anuncio** siempre pertenece a un **Type** (`idType`).
-- Un **Type** siempre pertenece a una **Category** (`idCategory`).
-- Algunos tipos usan el modelo genérico **Meeting**; otros usan un **modelo especial** (por ejemplo `ShabbosMevorchimMeeting`, `DafYomiMeeting`) con campos propios.
+| Aspecto | Detalle |
+|--------|---------|
+| **Base URL** | `/api/meetings` |
+| **Auth** | **Todas** las rutas de este módulo requieren token Firebase + rol **owner admin**. |
+| **Token** | Se envía en header `Authorization: Bearer <idToken>` igual que en Units/Roles. |
+| **Rol admin** | El middleware `verifyOwnerAdmin` comprueba que el `firebase_uid` del token pertenece a un Owner (husband o wife) con `idRol` administrador. |
+| **Headers** | `Content-Type: application/json` para los endpoints con body. |
 
 ---
 
-## 🌐 API de reuniones y anuncios
+## 🚀 Resumen de endpoints
 
-Todas las rutas están bajo **`/api/meetings`** y requieren **Firebase ID Token** + **owner administrador** (mismo middleware que Units y Roles).
+### Estructura de tipos (para front)
 
-### Estructura (frontend ↔ backend)
+| Método | Ruta | Descripción | Auth |
+|--------|------|-------------|------|
+| `GET` | `/api/meetings/structure` | Devuelve **todas las categorías** con sus **types**, y para cada type: `_id`, `name`, `weekDay`, `modelKey` y `fields`. Es la “guía” para saber qué modelo usar y qué campos mostrar. | Sí (Bearer + owner admin) |
 
-- **GET `/api/meetings/structure`**  
-  Devuelve todas las categorías con sus tipos. Para cada tipo incluye `_id`, `name`, `weekDay`, **`modelKey`** y **`fields`**.  
-  El frontend usa `modelKey` para saber a qué ruta CRUD llamar (ej. `meeting`, `shabbos-mevorchim-meeting`, `daf-yomi-meeting`) y `fields` para construir el formulario de creación/edición. Así se evita ambigüedad entre Type y modelo.
+### CRUD genérico por `modelKey`
 
-**Ejemplo de respuesta (fragmento):**
+Todas estas rutas usan un **`modelKey`** que identifica el modelo/colección que se va a usar.  
+El `modelKey` es el que devuelve `/structure` para cada Type.
+
+ModelKeys permitidos actualmente:
+
+`meeting`, `shabbos-mevorchim-meeting`, `daf-yomi-meeting`,  
+`additional-shiurim-meeting`, `announcements-notes-meeting`,  
+`pirkei-avis-shiur-announcements`, `mazel-tov-announcements`,  
+`avos-ubonim-sponsor-announcements`.
+
+| Método | Ruta | Descripción | Auth |
+|--------|------|-------------|------|
+| `GET` | `/api/meetings/:modelKey` | Lista registros de ese modelo. Se puede filtrar por `status` e `idType`. | Sí |
+| `POST` | `/api/meetings/:modelKey` | Crea un nuevo registro en la colección asociada al `modelKey`. Requiere `idType` + campos del modelo. | Sí |
+| `GET` | `/api/meetings/:modelKey/:id` | Obtiene un registro por `_id`. | Sí |
+| `PATCH` | `/api/meetings/:modelKey/:id` | Actualiza campos permitidos del modelo. | Sí |
+| `PATCH` | `/api/meetings/:modelKey/:id/activate` | Activa el registro (`status = 1`). | Sí |
+| `PATCH` | `/api/meetings/:modelKey/:id/anular` | Anula/inhabilita el registro (`status = 2`). | Sí |
+
+---
+
+## 🔧 Endpoints detallados
+
+### 1. Obtener estructura de categorías y tipos — `/structure`
+
+- **Método**: `GET`  
+- **Ruta**: `/api/meetings/structure`  
+- **Headers**: `Authorization: Bearer <idToken>`
+
+Devuelve todas las **categorías** con sus **types**.  
+Para cada Type incluye:
+- `_id`
+- `name`
+- `weekDay`
+- `modelKey`
+- `fields`
+
+El **frontend** usa esta información para:
+- Saber qué **type** (por `_id`) usar como `idType` al crear registros.
+- Saber qué **modelKey** corresponde (qué ruta CRUD usar).
+- Saber qué **fields** tiene que mostrar en el formulario de creación/edición.
+
+#### Ejemplo de respuesta (fragmento)
+
 ```json
 {
   "success": true,
   "data": [
     {
-      "_id": "...",
+      "_id": "69a521a9f8c0fd1685c98bc2",
       "name": "Minyanim",
       "types": [
         {
-          "_id": "...",
+          "_id": "69a521a9f8c0fd1685c98bc6",
           "name": "Shachris",
           "weekDay": "Monday-thursday",
           "modelKey": "meeting",
@@ -62,288 +112,437 @@ Todas las rutas están bajo **`/api/meetings`** y requieren **Firebase ID Token*
 }
 ```
 
-### CRUD por modelKey
+#### Errores
 
-Todas las rutas usan el **modelKey** en la URL (el mismo que devuelve `structure` para cada tipo). Valores permitidos:  
-`meeting`, `shabbos-mevorchim-meeting`, `daf-yomi-meeting`, `additional-shiurim-meeting`, `announcements-notes-meeting`, `pirkei-avis-shiur-announcements`, `mazel-tov-announcements`, `avos-ubonim-sponsor-announcements`.
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| GET | `/api/meetings/:modelKey` | Listar (query: `status`, `idType` opcionales). |
-| POST | `/api/meetings/:modelKey` | Crear (body debe incluir `idType` y los campos del modelo). |
-| GET | `/api/meetings/:modelKey/:id` | Obtener uno por id. |
-| PATCH | `/api/meetings/:modelKey/:id` | Actualizar. |
-| PATCH | `/api/meetings/:modelKey/:id/activate` | Activar (status = 1). |
-| PATCH | `/api/meetings/:modelKey/:id/anular` | Anular (status = 2). |
-
-- **Crear:** el body debe incluir al menos `idType` (ObjectId del Type). El resto de campos según el modelo (ver `fields` en `structure`).  
-- **Listar:** opcionalmente `?status=1` o `?idType=...` para filtrar.
+| Código | Caso |
+|--------|------|
+| `401` | Token faltante o inválido (middleware `verifyFirebaseToken`). |
+| `403` | El usuario no es owner admin (`verifyOwnerAdmin`). |
+| `500` | Error interno al leer categorías/types. |
 
 ---
 
-## 📁 Categories
+### 2. Listar registros por `modelKey`
 
-### Cómo funcionan
+- **Método**: `GET`  
+- **Ruta**: `/api/meetings/:modelKey`  
+- **Headers**: `Authorization: Bearer <idToken>`
+
+Lista registros de la colección asociada al `modelKey`.  
+Opciones de filtrado:
+- `status` (1 = activo, 2 = inactivo/anulado).
+- `idType` (ObjectId de Type).
+
+#### Query params
+
+| Param | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `status` | number | No | Filtra por estado (`1` activo, `2` inactivo). |
+| `idType` | string (ObjectId) | No | Filtra solo los registros de un Type concreto. |
+
+#### Ejemplo de petición
+
+```http
+GET /api/meetings/meeting?status=1&idType=69a521a9f8c0fd1685c98bc6
+Authorization: Bearer <token>
+```
+
+#### Respuesta 200 — Lista de registros
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "abc123...",
+      "name": "Shachris 7:00 AM",
+      "location": "Main Shul",
+      "time": "07:00",
+      "period": "Weekly",
+      "status": 1,
+      "idType": "69a521a9f8c0fd1685c98bc6"
+    }
+  ]
+}
+```
+
+#### Errores
+
+| Código | Caso |
+|--------|------|
+| `400` | `modelKey` inválido. |
+| `401` / `403` | Auth/rol fallido. |
+| `500` | Error interno. |
+
+---
+
+### 3. Crear registro por `modelKey`
+
+- **Método**: `POST`  
+- **Ruta**: `/api/meetings/:modelKey`  
+- **Headers**: `Content-Type: application/json`, `Authorization: Bearer <idToken>`
+
+Se usa para crear **tanto meetings como announcements**.  
+La estructura del body depende del `modelKey` y de sus `fields`, pero **siempre** debe incluir `idType`.
+
+#### Campos generales
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `idType` | string (ObjectId) | Sí | `_id` del Type, obtenido desde `/structure`. |
+| Resto | según `fields` | Sí/No | Depende del modelo. Ver tabla siguiente. |
+
+#### Campos por `modelKey` (resumen)
+
+| modelKey | Colección | Campos principales |
+|----------|-----------|--------------------|
+| `meeting` | `meetings` | `name`, `location`, `time`, `period`, `status`, `idType` |
+| `shabbos-mevorchim-meeting` | `shabbos_mevorchim_meetings` | `time`, `location`, `notes`, `period`, `status`, `idType` |
+| `daf-yomi-meeting` | `daf_yomi_meetings` | `time`, `period`, `status`, `idType` |
+| `additional-shiurim-meeting` | `additional_shiurim_meetings` | `name`, `time`, `description`, `period`, `status`, `idType` |
+| `pirkei-avis-shiur-announcements` | `pirkei_avis_shiur_meetings` | `name`, `period`, `status`, `idType` |
+| `mazel-tov-announcements` | `mazel_tov_announcements_meetings` | `description`, `period`, `status`, `idType` |
+| `avos-ubonim-sponsor-announcements` | `avos_ubonim_sponsor_meetings` | `name`, `period`, `status`, `idType` |
+| `announcements-notes-meeting` | `announcements_notes_meetings` | `additionalNotes`, `period`, `status`, `idType` |
+
+#### Ejemplo — Crear un Minyan de Shachris
+
+1. Front llama a `/api/meetings/structure`, localiza:
+   - Category: `Minyanim`
+   - Type: `Shachris` (`weekDay: "Monday-thursday"`)
+   - Obtiene su `_id` (ej. `69a521a9f8c0fd1685c98bc6`) y `modelKey: "meeting"`.
+
+2. Para crear el registro:
+
+```http
+POST /api/meetings/meeting
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+```json
+{
+  "idType": "69a521a9f8c0fd1685c98bc6",
+  "name": "Shachris 7:00 AM",
+  "location": "Main Shul",
+  "time": "07:00",
+  "period": "Weekly"
+}
+```
+
+> `status` no es obligatorio en el body; por defecto se crea con `1` (activo).
+
+#### Respuesta 201 — Created
+
+```json
+{
+  "success": true,
+  "message": "Created successfully",
+  "data": {
+    "_id": "abc123...",
+    "idType": "69a521a9f8c0fd1685c98bc6",
+    "name": "Shachris 7:00 AM",
+    "location": "Main Shul",
+    "time": "07:00",
+    "period": "Weekly",
+    "status": 1
+  }
+}
+```
+
+#### Errores
+
+| Código | Caso |
+|--------|------|
+| `400` | `modelKey` inválido, falta `idType` o `idType` no es ObjectId válido. |
+| `401` / `403` | Auth/rol fallido. |
+| `500` | Error interno. |
+
+---
+
+### 4. Obtener, actualizar, activar y anular
+
+#### Obtener por id
+
+- **Método**: `GET`  
+- **Ruta**: `/api/meetings/:modelKey/:id`
+
+Devuelve un documento completo del modelo asociado al `modelKey`.
+
+#### Actualizar
+
+- **Método**: `PATCH`  
+- **Ruta**: `/api/meetings/:modelKey/:id`
+
+Body con los campos que se quieran actualizar (solo se aplican los que están en `fields` para ese `modelKey`).
+
+#### Activar
+
+- **Método**: `PATCH`  
+- **Ruta**: `/api/meetings/:modelKey/:id/activate`
+
+Pone `status = 1`.
+
+#### Anular
+
+- **Método**: `PATCH`  
+- **Ruta**: `/api/meetings/:modelKey/:id/anular`
+
+Pone `status = 2`.
+
+En todos los casos:
+
+| Código | Caso |
+|--------|------|
+| `400` | `modelKey` inválido o `id` no es ObjectId válido. |
+| `404` | Documento no encontrado. |
+| `401` / `403` | Auth/rol fallido. |
+| `500` | Error interno. |
+
+---
+
+## 📦 Estructura de datos
+
+### Resumen jerárquico
+
+```text
+Category (ej. Minyanim, Shabbos, Shiurim, Announcements)
+    └── Type (ej. Shachris + Monday-thursday, Daf Yomi + wednesday-friday)
+            └── Modelo: Meeting | ShabbosMevorchimMeeting | DafYomiMeeting | ... (según el tipo)
+```
+
+- Una **reunión** o **anuncio** siempre pertenece a un **Type** (`idType`).
+- Un **Type** siempre pertenece a una **Category** (`idCategory`).
+- Algunos Types usan el modelo genérico **Meeting**; otros usan un modelo específico (ShabbosMevorchimMeeting, DafYomiMeeting, etc.).
+
+### Category
 
 - **Modelo:** `Category`  
 - **Archivo:** `src/models/category.model.js`  
-- **Colección MongoDB:** `categories` (por defecto Mongoose).
+- **Colección:** `categories`
 
-**Campos:**
-
-| Campo   | Tipo   | Descripción        |
-|---------|--------|--------------------|
+| Campo   | Tipo   | Descripción |
+|---------|--------|-------------|
 | `name`  | String | Nombre de la categoría. |
 | `createdAt`, `updatedAt` | Date | Timestamps. |
 
-Las categorías agrupan tipos por tema (minyanim, shabbos, shiurim, anuncios). No tienen clave única a nivel de esquema; el nombre es identificador lógico.
+Categorías creadas por el seed:
 
-### Categorías creadas por el seed
+| name | Descripción breve |
+|------|-------------------|
+| **Minyanim** | Rezos (Shachris, Mincha, Maariv). |
+| **Shabbos** | Rezos/eventos de Shabbos (+ tipo especial Shabbos Mevorchim). |
+| **Shiurim** | Clases (Daf Yomi, Additional Shiurim). |
+| **Announcements** | Anuncios de distintos tipos. |
 
-| name           | Descripción breve |
-|----------------|-------------------|
-| **Minyanim**   | Rezos (Shachris, Mincha, Maariv) por día. |
-| **Shabbos**    | Rezos y eventos de Shabbos (+ tipo especial Shabbos Mevorchim). |
-| **Shiurim**    | Clases (Daf Yomi, Additional Shiurim). |
-| **Announcements** | Anuncios (Pirkei Avis, Mazel Tov, Avos U'Bonim Sponsor, Announcements Notes). |
-
----
-
-## 📋 Types
-
-### Cómo funcionan
+### Type
 
 - **Modelo:** `Type`  
 - **Archivo:** `src/models/type.model.js`  
-- **Colección MongoDB:** `types` (por defecto).
+- **Colección:** `types`
 
-**Campos:**
-
-| Campo       | Tipo     | Descripción |
-|------------|----------|-------------|
-| `name`     | String   | Nombre del tipo (ej. "Shachris", "Daf Yomi"). |
-| `weekDay`  | String   | Día o rango de días (ej. "Monday-thursday", "Friday", "Shabbos"). Puede ser `null` para tipos que no son por día (ej. anuncios). |
-| `idCategory` | ObjectId (ref `Category`) | Categoría a la que pertenece el tipo. |
+| Campo       | Tipo   | Descripción |
+|------------|--------|-------------|
+| `name`     | String | Nombre del tipo (ej. "Shachris"). |
+| `weekDay`  | String | Día o rango de días (`"Monday-thursday"`, `"Friday"`, `"wednesday-friday"`) o `null` para anuncios. |
+| `idCategory` | ObjectId (ref `Category`) | Categoría a la que pertenece. |
 | `createdAt`, `updatedAt` | Date | Timestamps. |
 
-**Clave única compuesta:** `(name, weekDay, idCategory)`. Así se permite, por ejemplo, un tipo "Shachris" para "Monday-thursday" y otro "Shachris" para "Friday" dentro de la misma categoría Minyanim.
+**Índice único:** `(name, weekDay, idCategory)` para no duplicar types.
 
-### Types por categoría (según el seed)
+Types por categoría (según seed) ya están en el bloque original; se mantienen como referencia.
 
-#### Minyanim
+### Modelos de reuniones/anuncios (resumen)
 
-| name     | weekDay          |
-|----------|------------------|
-| Shachris | Monday-thursday  |
-| Mincha   | Monday-thursday  |
-| Maariv   | Monday-thursday  |
-| Shachris | Friday          |
-| Shachris | Sunday          |
-| Mincha   | Sunday          |
-| Maariv   | Sunday          |
+Todos tienen al menos **`idType`** (ref `Type`) y **`status`** (`1` activo, `2` anulado).
 
-#### Shabbos
+| Modelo | Archivo | Colección | Uso |
+|--------|---------|-----------|-----|
+| `Meeting` | `src/models/meeting.model.js` | `meetings` | Minyanim + tipos estándar de Shabbos. |
+| `ShabbosMevorchimMeeting` | `src/models/shabbos-mevorchim-meeting.model.js` | `shabbos_mevorchim_meetings` | Shabbos Mevorchim. |
+| `DafYomiMeeting` | `src/models/daf-yomi-meeting.model.js` | `daf_yomi_meetings` | Daf Yomi. |
+| `AdditionalShiurimMeeting` | `src/models/additional-shiurim-meeting.model.js` | `additional_shiurim_meetings` | Additional Shiurim. |
+| `PirkeiAvisShiurMeeting` | `src/models/pirkei-avis-shiur-meeting.model.js` | `pirkei_avis_shiur_meetings` | Pirkei Avis Shiur. |
+| `MazelTovAnnouncementsMeeting` | `src/models/mazel-tov-announcements-meeting.model.js` | `mazel_tov_announcements_meetings` | Mazel Tov Announcements. |
+| `AvosUBonimSponsorMeeting` | `src/models/avos-ubonim-sponsor-meeting.model.js` | `avos_ubonim_sponsor_meetings` | Avos U'Bonim Sponsor. |
+| `AnnouncementsNotesMeeting` | `src/models/announcements-notes-meeting.model.js` | `announcements_notes_meetings` | Notas generales de anuncios. |
 
-| name                | weekDay          |
-|---------------------|------------------|
-| Kabolas Shabbos     | wednesday-friday |
-| Shachris            | wednesday-friday |
-| Mincha              | wednesday-friday |
-| Motzei Shabbos Maariv | wednesday-friday |
-| **Shabbos Mevorchim** | Shabbos        | *(tipo especial; reuniones en `ShabbosMevorchimMeeting`)* |
+> La relación Type → modelo específico está codificada en  
+> `src/config/meetingModels.config.js` (mapa `TYPE_TO_MODEL` y `MODELS_BY_KEY`).
 
-#### Shiurim
-
-| name               | weekDay          |
-|--------------------|------------------|
-| Daf Yomi           | wednesday-friday |
-| Additional Shiurim | wednesday-friday |
-
-#### Announcements (weekDay = null)
-
-| name                     | weekDay |
-|--------------------------|--------|
-| Pirkei Avis Shiur        | null   |
-| Mazel Tov Announcements | null   |
-| Avos U'Bonim Sponsor    | null   |
-| Announcements Notes     | null   |
-
----
-
-## 📄 Modelos de reuniones y anuncios
-
-Todos los modelos que representan una “reunión” o “anuncio” tienen al menos **`idType`** (ref `Type`). Según el tipo, se usa el modelo genérico **Meeting** o uno de los **modelos especiales** listados abajo.
-
-### Modelo genérico: Meeting
-
-- **Archivo:** `src/models/meeting.model.js`  
-- **Colección:** `meetings`
-
-**Uso:** Reuniones estándar (nombre, lugar, hora, período).
-
-| Campo     | Tipo   | Descripción |
-|----------|--------|-------------|
-| `name`   | String | Nombre de la reunión. |
-| `location` | String | Lugar. |
-| `time`   | String | Hora. |
-| `period` | String | Período (ej. semanal, mensual). |
-| `idType` | ObjectId (ref `Type`) | Tipo al que pertenece. |
-
-**Pertenecen a este modelo** los tipos que no tienen modelo especial propio, por ejemplo los de **Minyanim** (Shachris, Mincha, Maariv en sus distintos weekDay) y los de **Shabbos** excepto Shabbos Mevorchim (Kabolas Shabbos, Shachris, Mincha, Motzei Shabbos Maariv en wednesday-friday).
-
----
-
-### ShabbosMevorchimMeeting
-
-- **Archivo:** `src/models/shabbos-mevorchim-meeting.model.js`  
-- **Colección:** `shabbos_mevorchim_meetings`
-
-**Uso:** Reuniones especiales del tipo **Shabbos Mevorchim** (Category: Shabbos). Sin campo `name`; incluye `notes`.
-
-| Campo     | Tipo   | Descripción |
-|----------|--------|-------------|
-| `time`   | String | Hora. |
-| `location` | String | Lugar. |
-| `notes`  | String | Notas. |
-| `period` | String | Período. |
-| `idType` | ObjectId (ref `Type`) | Debe ser el Type "Shabbos Mevorchim" (weekDay: Shabbos). |
-
-**Pertenece al Type:** `name: "Shabbos Mevorchim"`, `weekDay: "Shabbos"`, Category: **Shabbos**.
-
----
-
-### DafYomiMeeting
-
-- **Archivo:** `src/models/daf-yomi-meeting.model.js`  
-- **Colección:** `daf_yomi_meetings`
-
-**Uso:** Reuniones/clases del tipo **Daf Yomi** (solo time y period).
-
-| Campo   | Tipo   | Descripción |
-|--------|--------|-------------|
-| `time` | String | Hora. |
-| `period` | String | Período. |
-| `idType` | ObjectId (ref `Type`) | Debe ser el Type "Daf Yomi". |
-
-**Pertenece al Type:** `name: "Daf Yomi"`, `weekDay: "wednesday-friday"`, Category: **Shiurim**.
-
----
-
-### AdditionalShiurimMeeting
-
-- **Archivo:** `src/models/additional-shiurim-meeting.model.js`  
-- **Colección:** `additional_shiurim_meetings`
-
-**Uso:** Reuniones/clases del tipo **Additional Shiurim** (nombre, hora, descripción, período).
-
-| Campo         | Tipo   | Descripción |
-|--------------|--------|-------------|
-| `name`       | String | Nombre. |
-| `time`       | String | Hora. |
-| `description` | String | Descripción. |
-| `period`     | String | Período. |
-| `idType`     | ObjectId (ref `Type`) | Debe ser el Type "Additional Shiurim". |
-
-**Pertenece al Type:** `name: "Additional Shiurim"`, `weekDay: "wednesday-friday"`, Category: **Shiurim**.
-
----
-
-### PirkeiAvisShiurMeeting
-
-- **Archivo:** `src/models/pirkei-avis-shiur-meeting.model.js`  
-- **Colección:** `pirkei_avis_shiur_meetings`
-
-**Uso:** Anuncios del tipo **Pirkei Avis Shiur** (Category: Announcements).
-
-| Campo   | Tipo   | Descripción |
-|--------|--------|-------------|
-| `name` | String | Nombre. |
-| `period` | String | Período. |
-| `idType` | ObjectId (ref `Type`) | Debe ser el Type "Pirkei Avis Shiur". |
-
-**Pertenece al Type:** `name: "Pirkei Avis Shiur"`, `weekDay: null`, Category: **Announcements**.
-
----
-
-### MazelTovAnnouncementsMeeting
-
-- **Archivo:** `src/models/mazel-tov-announcements-meeting.model.js`  
-- **Colección:** `mazel_tov_announcements_meetings`
-
-**Uso:** Anuncios del tipo **Mazel Tov Announcements**.
-
-| Campo         | Tipo   | Descripción |
-|--------------|--------|-------------|
-| `description` | String | Descripción del anuncio. |
-| `period`     | String | Período. |
-| `idType`     | ObjectId (ref `Type`) | Debe ser el Type "Mazel Tov Announcements". |
-
-**Pertenece al Type:** `name: "Mazel Tov Announcements"`, `weekDay: null`, Category: **Announcements**.
-
----
-
-### AvosUBonimSponsorMeeting
-
-- **Archivo:** `src/models/avos-ubonim-sponsor-meeting.model.js`  
-- **Colección:** `avos_ubonim_sponsor_meetings`
-
-**Uso:** Sponsors del tipo **Avos U'Bonim Sponsor**.
-
-| Campo   | Tipo   | Descripción |
-|--------|--------|-------------|
-| `name` | String | Nombre (ej. del sponsor). |
-| `period` | String | Período. |
-| `idType` | ObjectId (ref `Type`) | Debe ser el Type "Avos U'Bonim Sponsor". |
-
-**Pertenece al Type:** `name: "Avos U'Bonim Sponsor"`, `weekDay: null`, Category: **Announcements**.
-
----
-
-### AnnouncementsNotesMeeting
-
-- **Archivo:** `src/models/announcements-notes-meeting.model.js`  
-- **Colección:** `announcements_notes_meetings`
-
-**Uso:** Notas generales del tipo **Announcements Notes**.
-
-| Campo            | Tipo   | Descripción |
-|-----------------|--------|-------------|
-| `additionalNotes` | String | Notas adicionales. |
-| `period`        | String | Período. |
-| `idType`        | ObjectId (ref `Type`) | Debe ser el Type "Announcements Notes". |
-
-**Pertenece al Type:** `name: "Announcements Notes"`, `weekDay: null`, Category: **Announcements**.
-
----
-
-## 🌱 Script de seed
+### Script de seed
 
 - **Archivo:** `scripts/seed-meetings-structure.js`  
-- **Uso:** `node scripts/seed-meetings-structure.js` (con MongoDB y `.env` configurados).
+- **Uso:** `node scripts/seed-meetings-structure.js`
 
-El script **solo crea Categories y Types**; no crea documentos en Meeting ni en los modelos especiales.
+Crea (si no existen):
+1. Category **Minyanim** + 7 Types (Shachris/Mincha/Maariv con diferentes weekDay).  
+2. Category **Shabbos** + 4 Types estándar + Type especial **Shabbos Mevorchim**.  
+3. Category **Shiurim** + 2 Types (Daf Yomi, Additional Shiurim).  
+4. Category **Announcements** + 4 Types (Pirkei Avis, Mazel Tov, Avos U'Bonim Sponsor, Announcements Notes).
 
-1. **Minyanim:** categoría + 7 tipos (Shachris, Mincha, Maariv según weekDay).  
-2. **Shabbos:** categoría + 4 tipos (Kabolas Shabbos, Shachris, Mincha, Motzei Shabbos Maariv en wednesday-friday) + tipo **Shabbos Mevorchim** (weekDay: Shabbos) asociado por `idCategory` fijo.  
-3. **Shiurim:** categoría + 2 tipos (Daf Yomi, Additional Shiurim en wednesday-friday).  
-4. **Announcements:** categoría + 4 tipos (Pirkei Avis Shiur, Mazel Tov Announcements, Avos U'Bonim Sponsor, Announcements Notes) con `weekDay: null`.
-
-Es idempotente: se puede ejecutar varias veces sin duplicar categorías ni tipos gracias a la clave compuesta de Type.
+El script **no crea registros** en las colecciones de meetings/announcements, solo Category + Type.
 
 ---
 
-## 📊 Referencia rápida
+## 📘 Guía backend
 
-| Category      | Type (ejemplos)        | Modelo de datos        |
-|---------------|------------------------|-------------------------|
-| Minyanim      | Shachris, Mincha, Maariv (varios weekDay) | **Meeting** |
-| Shabbos       | Kabolas Shabbos, Shachris, Mincha, Motzei Shabbos Maariv | **Meeting** |
-| Shabbos       | Shabbos Mevorchim     | **ShabbosMevorchimMeeting** |
-| Shiurim       | Daf Yomi              | **DafYomiMeeting** |
-| Shiurim       | Additional Shiurim    | **AdditionalShiurimMeeting** |
-| Announcements | Pirkei Avis Shiur     | **PirkeiAvisShiurMeeting** |
-| Announcements | Mazel Tov Announcements | **MazelTovAnnouncementsMeeting** |
-| Announcements | Avos U'Bonim Sponsor  | **AvosUBonimSponsorMeeting** |
-| Announcements | Announcements Notes   | **AnnouncementsNotesMeeting** |
+- **Rutas**: `src/routes/meetings.route.js`
+  - `GET /structure` — usa `meetingStructure.controller.getStructure`.
+  - `GET /:modelKey` — lista registros (`meetings.controller.list`).
+  - `POST /:modelKey` — crea registro (`meetings.controller.create`).
+  - `GET /:modelKey/:id` — obtiene registro (`meetings.controller.getById`).
+  - `PATCH /:modelKey/:id` — actualiza (`meetings.controller.update`).
+  - `PATCH /:modelKey/:id/activate` — activa (`meetings.controller.activate`).
+  - `PATCH /:modelKey/:id/anular` — anula (`meetings.controller.anular`).
 
-Para crear o listar reuniones/anuncios: obtener el `_id` del **Type** correspondiente (por nombre + weekDay + idCategory) y usarlo en `idType` del modelo indicado.
+- **Middlewares**:
+  - `verifyFirebaseToken` — valida el token y pone `req.user = { uid, email }`.
+  - `verifyOwnerAdmin` — comprueba que el owner (husband/wife) tenga rol admin.
+  - En `meetings.route.js` se define `router.use([verifyFirebaseToken, verifyOwnerAdmin])`.
+
+- **Controladores**:
+  - `src/controllers/meetingStructure.controller.js`:
+    - Lee `Category` y `Type`, y con `getModelInfo` agrega `modelKey` y `fields`.
+  - `src/controllers/meetings.controller.js`:
+    - Usa `getModelByKey` para resolver `modelKey` → Modelo Mongoose.
+    - Usa `getFieldsForModelKey` para permitir solo ciertos campos en create/update.
+    - Implementa lógica genérica de list/get/create/update/activate/anular.
+
+- **Config de mapeo**:
+  - `src/config/meetingModels.config.js`:
+    - `TYPE_TO_MODEL`: `(categoryName, typeName, weekDay)` → `{ modelKey, fields }`.
+    - `MODELS_BY_KEY`: `modelKey` → Modelo Mongoose.
+    - `FIELDS_BY_MODEL_KEY`: `modelKey` → lista de campos permitidos.
+
+---
+
+## 📗 Guía frontend
+
+### 1. Obtener estructura de tipos
+
+```javascript
+const API_URL = 'http://localhost:5000';
+const token = localStorage.getItem('token'); // idToken de Firebase
+
+const { data } = await axios.get(`${API_URL}/api/meetings/structure`, {
+  headers: { Authorization: `Bearer ${token}` },
+});
+
+if (data.success) {
+  const categories = data.data; // array de categorías
+  // Ejemplo: buscar un type específico
+  const minyanim = categories.find((c) => c.name === 'Minyanim');
+  const shachrisType = minyanim.types.find(
+    (t) => t.name === 'Shachris' && t.weekDay === 'Monday-thursday'
+  );
+  // shachrisType.modelKey === 'meeting'
+  // shachrisType.fields === ['name', 'location', 'time', 'period', 'status', 'idType']
+}
+```
+
+### 2. Crear un registro según Type seleccionado
+
+```javascript
+const type = shachrisType; // del ejemplo anterior
+const modelKey = type.modelKey; // 'meeting'
+const idType = type._id;       // ObjectId del Type
+
+const body = {
+  idType,
+  name: 'Shachris 7:00 AM',
+  location: 'Main Shul',
+  time: '07:00',
+  period: 'Weekly',
+};
+
+const { data: created } = await axios.post(
+  `${API_URL}/api/meetings/${modelKey}`,
+  body,
+  {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  }
+);
+```
+
+Para otros types (Announcements, Shiurim, Shabbos Mevorchim, etc.) el **modelo de front** es igual:  
+1) el usuario selecciona un Type,  
+2) lees `modelKey` y `fields`,  
+3) dibujas el formulario dinámicamente,  
+4) haces POST a `/api/meetings/:modelKey` con `idType` + esos campos.
+
+### 3. Listar y filtrar por type
+
+```javascript
+const { data } = await axios.get(
+  `${API_URL}/api/meetings/meeting`,
+  {
+    params: { status: 1, idType },
+    headers: { Authorization: `Bearer ${token}` },
+  }
+);
+
+const meetings = data.data; // registros de ese type/modelKey
+```
+
+### 4. Activar / anular / editar
+
+```javascript
+// Activar
+await axios.patch(
+  `${API_URL}/api/meetings/meeting/${meetingId}/activate`,
+  {},
+  { headers: { Authorization: `Bearer ${token}` } }
+);
+
+// Anular
+await axios.patch(
+  `${API_URL}/api/meetings/meeting/${meetingId}/anular`,
+  {},
+  { headers: { Authorization: `Bearer ${token}` } }
+);
+
+// Editar (solo campos permitidos en fields)
+await axios.patch(
+  `${API_URL}/api/meetings/meeting/${meetingId}`,
+  { time: '07:15' },
+  { headers: { Authorization: `Bearer ${token}` } }
+);
+```
+
+---
+
+## 🔄 Orden del flujo (ejemplo)
+
+1. **Frontend carga estructura** con `GET /api/meetings/structure`.
+2. El usuario elige:
+   - Category (ej. Minyanim).
+   - Type (ej. Shachris, Monday-thursday).
+3. El front toma de ese Type:
+   - `modelKey` (ej. `meeting`).
+   - `fields` (ej. `['name','location','time','period','status','idType']`).
+4. Dibuja un formulario con esos campos (excepto `status`, que puede ser oculto o por defecto).
+5. Al enviar, hace `POST /api/meetings/:modelKey` con:
+   - `idType` = `_id` del Type.
+   - Valores de los campos del formulario.
+6. Para mostrar en pantalla, usa:
+   - `GET /api/meetings/:modelKey?idType=<idType>&status=1`.
+7. Para mantener la estructura (enable/disable), usa:
+   - `PATCH /api/meetings/:modelKey/:id/activate` o `.../anular`.
+
+Con esto, **no hay ambigüedad** entre Type y modelo/colección:  
+todo se resuelve vía `structure` → `modelKey` → rutas CRUD.
+
+---
+
+## 📝 Registro de cambios
+
+| Fecha / contexto | Cambio |
+|------------------|--------|
+| **Módulo Meetings & Announcements** | Creación de `Category`, `Type` y modelos de meetings/announcements (Meeting, ShabbosMevorchimMeeting, DafYomiMeeting, AdditionalShiurimMeeting, PirkeiAvisShiurMeeting, MazelTovAnnouncementsMeeting, AvosUBonimSponsorMeeting, AnnouncementsNotesMeeting). |
+| **Script seed** | `scripts/seed-meetings-structure.js` siembra categorías y types (Minyanim, Shabbos, Shiurim, Announcements). |
+| **Endpoint `/api/meetings/structure`** | Devuelve categorías con types, incluyendo `modelKey` y `fields` para que el frontend sepa qué modelo y campos usar. |
+| **CRUD por `modelKey`** | `src/controllers/meetings.controller.js` y `src/routes/meetings.route.js` permiten crear/listar/editar/activar/anular registros de todos los modelos a través de un único patrón de rutas. |
