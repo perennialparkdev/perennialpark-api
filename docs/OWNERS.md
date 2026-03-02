@@ -16,7 +16,7 @@
 
 | Aspecto | Detalle |
 |--------|---------|
-| **Auth** | **check-unit**, **signup**, **login**, **invitation/validate** e **invitation/complete** son **públicas**. **complete-profile** requiere `Authorization: Bearer <idToken>`. |
+| **Auth** | **check-unit**, **signup**, **login**, **invitation/validate**, **invitation/complete**, **password-request** y **password-reset-form** (GET/POST) son **públicas**. **complete-profile** requiere `Authorization: Bearer <idToken>`. |
 | **Token** | Tras **login** el cliente recibe un `idToken`; debe enviarlo en header `Authorization: Bearer <token>` en **complete-profile**. El middleware `verifyFirebaseToken` valida el token y expone `req.user = { uid, email }`. |
 | **Headers** | `Content-Type: application/json` para body; en **complete-profile** además `Authorization: Bearer <token>`. |
 
@@ -32,6 +32,9 @@
 | `POST` | `/api/owners/complete-profile` | Formulario primario: unit, husband, wife, children. El email del token debe coincidir con husband_email o wife_email. Crea owner activo (status 1) y opcionalmente pendiente (status -1) con invitación por correo. | Sí (Bearer) |
 | `POST` | `/api/owners/invitation/validate` | Valida email + token de invitación; devuelve `missingFields` para el formulario dinámico del co-propietario. | No |
 | `POST` | `/api/owners/invitation/complete` | Completa perfil del owner pendiente: actualiza campos, crea usuario en Firebase y activa (status 1). | No |
+| `POST` | `/api/owners/password-request` | Solicita cambio de contraseña: recibe email, genera token, guarda en owner y envía correo con enlace al formulario MVC. | No |
+| `GET` | `/api/owners/password-reset-form` | Página MVC con formulario para nueva contraseña (token y email en query). Sirve HTML con estilo Perennial Park. | No |
+| `POST` | `/api/owners/password-reset-form` | Procesa el formulario: actualiza contraseña en MongoDB (owner) y en Firebase, limpia `resetToken`. Responde con HTML de éxito. | No |
 
 ---
 
@@ -524,6 +527,140 @@ El co-propietario envía **email**, **token** y los campos que faltan (incluida 
 
 ---
 
+### 7. Solicitar cambio de contraseña (password-request)
+
+- **Método**: `POST`
+- **Ruta**: `/api/owners/password-request`
+- **Content-Type**: `application/json`
+- **Auth**: No (público).
+
+El usuario (o el frontend) envía el **email** del owner. La API busca un owner activo (status 1) con ese email en `OwnerHusbandUser` o `OwnerWifeUser` que tenga `firebase_uid`. Si existe, genera un **resetToken**, lo guarda en el documento del owner y envía un correo (Nodemailer) con un enlace a la página MVC de cambio de contraseña. La respuesta es siempre la misma para no revelar si el email está registrado.
+
+#### Request body
+
+```json
+{
+  "email": "propietario@ejemplo.com"
+}
+```
+
+| Campo   | Tipo   | Requerido | Descripción                          |
+|---------|--------|-----------|--------------------------------------|
+| `email` | string | Sí        | Correo del owner (husband_email o wife_email). |
+
+#### Response 200 — Solicitud aceptada
+
+```json
+{
+  "success": true,
+  "message": "If an account exists with this email, you will receive a link to reset your password."
+}
+```
+
+#### Response 400 — Falta email
+
+```json
+{
+  "success": false,
+  "message": "email is required"
+}
+```
+
+#### Response 500 — Error al enviar correo
+
+Si Nodemailer falla al enviar el correo:
+
+```json
+{
+  "success": false,
+  "message": "Failed to send reset email. Please try again later."
+}
+```
+
+**Postman:** `POST` → URL base `https://perennialpark-api.onrender.com/api/owners/password-request` (o `http://localhost:5000` en local). Body → raw → JSON con el objeto anterior.
+
+---
+
+### 8. Formulario MVC de cambio de contraseña (password-reset-form)
+
+El flujo de cambio de contraseña incluye una **vista servida por la API** (MVC): una página HTML con el estilo Perennial Park (card blanca, verde, fondo degradado) donde el usuario introduce la nueva contraseña. No depende del frontend de la aplicación.
+
+#### 8.1 GET — Mostrar formulario
+
+- **Método**: `GET`
+- **Ruta**: `/api/owners/password-reset-form?token=...&email=...`
+- **Auth**: No.
+
+El **enlace** que se envía en el correo tiene esta forma (la API lo construye con `APP_PUBLIC_URL` o, en producción, `https://perennialpark-api.onrender.com`):
+
+```
+https://perennialpark-api.onrender.com/api/owners/password-reset-form?token=TOKEN_GENERADO&email=usuario@ejemplo.com
+```
+
+- Si **token** o **email** faltan o no coinciden con ningún owner con ese `resetToken`, la API responde con **400** y una página HTML de error (mismo estilo).
+- Si son válidos, responde con **200** y una página HTML con:
+  - Título "Reset Password", subtítulo "Enter your new password below."
+  - Campos: **New password**, **Confirm password** (y campos ocultos `token`, `email`).
+  - Botón verde "Reset Password" que envía el formulario por POST a la misma ruta.
+
+**Uso en navegador:** el usuario abre el enlace del correo en el navegador y ve el formulario. No hace falta Postman para este paso.
+
+#### 8.2 POST — Enviar nueva contraseña
+
+- **Método**: `POST`
+- **Ruta**: `/api/owners/password-reset-form`
+- **Content-Type**: `application/x-www-form-urlencoded` (envío desde el formulario HTML) o `application/json`.
+- **Auth**: No.
+
+El formulario de la página MVC envía por defecto:
+
+| Campo             | Descripción                                      |
+|-------------------|--------------------------------------------------|
+| `email`           | Correo del owner (oculto en el formulario).      |
+| `token`           | resetToken (oculto).                             |
+| `password`        | Nueva contraseña (mínimo 6 caracteres).         |
+| `passwordConfirm` | Confirmación de la contraseña (debe coincidir). |
+
+La API valida token y email contra el owner, actualiza el campo **password** en MongoDB (OwnerHusbandUser u OwnerWifeUser), llama a **Firebase** `auth.updateUser(uid, { password })` y elimina **resetToken** (`$unset`). Responde con una **página HTML de éxito** ("Password updated", "You can now sign in with your new password.").
+
+**Postman (opcional, para probar el POST sin navegador):**
+
+- **Método**: `POST`
+- **URL**: `https://perennialpark-api.onrender.com/api/owners/password-reset-form`
+- **Body** → x-www-form-urlencoded:
+
+| Key              | Value            |
+|------------------|------------------|
+| `email`          | usuario@ejemplo.com |
+| `token`          | (el token que se guardó en el owner; puede copiarse del enlace del correo) |
+| `password`       | NuevaPass123!    |
+| `passwordConfirm`| NuevaPass123!    |
+
+O **Body** → raw → JSON:
+
+```json
+{
+  "email": "usuario@ejemplo.com",
+  "token": "abc123...",
+  "password": "NuevaPass123!",
+  "passwordConfirm": "NuevaPass123!"
+}
+```
+
+**Respuesta exitosa:** cuerpo HTML (página de éxito). Errores (token inválido, contraseñas no coinciden, etc.) también se devuelven como HTML con mensaje de error en el mismo estilo.
+
+---
+
+### Resumen del flujo completo (cambio de contraseña)
+
+1. **Postman o frontend:** `POST /api/owners/password-request` con `{ "email": "usuario@ejemplo.com" }`.
+2. El usuario recibe un correo con un enlace a `.../api/owners/password-reset-form?token=...&email=...`.
+3. **Navegador:** el usuario abre el enlace → ve el formulario MVC (GET).
+4. **Navegador:** escribe la nueva contraseña y confirma → envía el formulario (POST a `/api/owners/password-reset-form`).
+5. La API actualiza la contraseña en MongoDB y Firebase y muestra la página de éxito. A partir de ahí el usuario puede iniciar sesión con la nueva contraseña vía `POST /api/owners/login`.
+
+---
+
 ## 📦 Estructura de datos
 
 ### Relación Unit ↔ Owners
@@ -534,18 +671,18 @@ El co-propietario envía **email**, **token** y los campos que faltan (incluida 
 
 ### Modelos implicados
 
-| Modelo | Archivo | Uso en check-unit |
-|--------|---------|-------------------|
-| Unit | `src/models/unit.model.js` | Búsqueda por `unit_number`. |
-| OwnerHusbandUser | `src/models/owner-husband-user.model.js` | Comprobar si existe registro con ese `unitId`. |
-| OwnerWifeUser | `src/models/owner-wife-user.model.js` | Comprobar si existe registro con ese `unitId`. |
+| Modelo | Archivo | Uso |
+|--------|---------|-----|
+| Unit | `src/models/unit.model.js` | Búsqueda por `unit_number` (check-unit, etc.). |
+| OwnerHusbandUser | `src/models/owner-husband-user.model.js` | Owners por `unitId`; `invitationToken` (invitación); **`resetToken`** (cambio de contraseña). |
+| OwnerWifeUser | `src/models/owner-wife-user.model.js` | Owners por `unitId`; `invitationToken` (invitación); **`resetToken`** (cambio de contraseña). |
 
 ---
 
 ## 📘 Guía backend
 
 - **Rutas**: `src/routes/owners.route.js`:
-  - Públicas: `POST /check-unit`, `POST /signup`, `POST /login`, `POST /invitation/validate`, `POST /invitation/complete`.
+  - Públicas: `POST /check-unit`, `POST /signup`, `POST /login`, `POST /invitation/validate`, `POST /invitation/complete`, `POST /password-request`, `GET /password-reset-form`, `POST /password-reset-form`.
   - Protegida con `verifyFirebaseToken`: `POST /complete-profile`.
 - **Controlador**: `src/controllers/owners.controller.js`:
   - **checkUnitAccess**: valida `usuario`/`contrasena` = unit_number, busca Unit y owners; 200 si puede ingresar, 403 si ya tiene owners.
@@ -554,8 +691,12 @@ El co-propietario envía **email**, **token** y los campos que faltan (incluida 
   - **completeProfile**: exige que `req.user.email` coincida con husband_email o wife_email; crea Unit (o la busca), owner activo (status 1), opcionalmente owner pendiente (status -1) con `invitationToken` y envío de correo (Nodemailer), y Children.
   - **validateInvitation**: busca owner por email + invitationToken; devuelve `missingFields` para formulario dinámico.
   - **completeInvitation**: actualiza owner con datos enviados, crea usuario en Firebase (email + password), pone status 1 y invalida invitationToken.
-- **Correo de invitación**: `src/services/mail.service.js` — `sendOwnerInvitationEmail(toEmail, recipientName, invitationToken)` (inglés, personalizado).
-- **Montaje**: En `app.js`, `app.use('/api/owners', ownersRoutes)`.
+  - **passwordRequest**: recibe email, busca owner activo con firebase_uid, genera resetToken (crypto), lo guarda en el owner y envía correo con enlace al formulario MVC (`sendPasswordResetEmail`). Respuesta genérica para no revelar si el email existe.
+  - **passwordResetForm** (GET): valida token y email en query; sirve página HTML con formulario (estilo Perennial Park) o página de error.
+  - **passwordResetSubmit** (POST): recibe email, token, password, passwordConfirm; actualiza password en MongoDB y en Firebase (`auth.updateUser`), elimina resetToken; responde con página HTML de éxito.
+- **Correo**: `src/services/mail.service.js` — `sendOwnerInvitationEmail(...)` (invitación); **`sendPasswordResetEmail(toEmail, recipientName, resetLink)`** (cambio de contraseña, enlace al MVC).
+- **URL base del enlace de reset**: `APP_PUBLIC_URL` o `PASSWORD_RESET_BASE_URL` en `.env`; en producción sin variable se usa `https://perennialpark-api.onrender.com`.
+- **Montaje**: En `app.js`, `app.use('/api/owners', ownersRoutes)`. Se usa `express.urlencoded({ extended: true })` para que el POST del formulario MVC llegue en `req.body`.
 
 ---
 
@@ -745,6 +886,24 @@ if (data.success) {
 }
 ```
 
+### Solicitar cambio de contraseña (password-request)
+
+Desde el frontend solo se necesita llamar al endpoint de solicitud; el resto del flujo (correo y formulario MVC) lo sirve la API.
+
+```javascript
+const { data } = await axios.post(
+  `${API_URL}/api/owners/password-request`,
+  { email: 'usuario@ejemplo.com' },
+  { headers: { 'Content-Type': 'application/json' } }
+);
+
+if (data.success) {
+  // Mostrar mensaje: "Si existe una cuenta con ese correo, recibirás un enlace para restablecer la contraseña."
+}
+```
+
+El usuario recibe el correo y abre el enlace en el navegador; la API sirve el formulario y procesa el POST. No hace falta que el frontend implemente la pantalla de “nueva contraseña” a menos que se quiera sustituir el MVC por una SPA que llame a `POST /api/owners/password-reset-form` con los mismos campos (email, token, password, passwordConfirm).
+
 ---
 
 ## 🔄 Orden del flujo (resumen)
@@ -755,6 +914,9 @@ if (data.success) {
 4. **POST /api/owners/complete-profile** — Con header `Authorization: Bearer <token>`, envía unit, husband, wife, children. El email del token debe ser husband_email o wife_email.
 5. *(Solo co-propietario)* **POST /api/owners/invitation/validate** — Con email y código del correo, obtiene `missingFields`.
 6. *(Solo co-propietario)* **POST /api/owners/invitation/complete** — Con email, token, password y campos faltantes; activa la cuenta y puede hacer login.
+7. *(Cambio de contraseña)* **POST /api/owners/password-request** — Con email; la API genera resetToken, lo guarda en el owner y envía correo con enlace al formulario MVC.
+8. *(Cambio de contraseña)* El usuario abre el enlace del correo en el navegador → **GET /api/owners/password-reset-form** sirve el formulario (token y email en query).
+9. *(Cambio de contraseña)* El usuario envía la nueva contraseña → **POST /api/owners/password-reset-form** actualiza contraseña en MongoDB y Firebase y muestra página de éxito.
 
 ---
 
@@ -769,4 +931,8 @@ if (data.success) {
 | **POST /api/owners/complete-profile** | Formulario primario (unit, husband, wife, children). Requiere token. El email del token debe ser husband_email o wife_email. Crea Unit, owner activo (status 1), opcionalmente owner pendiente (status -1) con invitationToken y correo de invitación (Nodemailer), y Children. |
 | **POST /api/owners/invitation/validate** | Valida email + token; devuelve missingFields para formulario dinámico del co-propietario. Público. |
 | **POST /api/owners/invitation/complete** | Completa perfil del owner pendiente: actualiza campos, crea usuario en Firebase, activa (status 1), invalida invitationToken. Público. |
-| **Modelos** | OwnerHusbandUser y OwnerWifeUser: campo `invitationToken` para el código de invitación. Children y Unit usados en complete-profile. |
+| **Modelos** | OwnerHusbandUser y OwnerWifeUser: campo `invitationToken` para el código de invitación; campo **`resetToken`** para el flujo de cambio de contraseña. Children y Unit usados en complete-profile. |
+| **POST /api/owners/password-request** | Solicita cambio de contraseña: body `{ email }`. Busca owner activo con firebase_uid, genera token con crypto, lo guarda en el owner y envía correo (Nodemailer) con enlace al formulario MVC. Respuesta genérica. Público. |
+| **GET /api/owners/password-reset-form** | Sirve página HTML (MVC) con formulario para nueva contraseña; query `token` y `email`. Si son válidos muestra el formulario; si no, página de error. Mismo estilo visual Perennial Park. Público. |
+| **POST /api/owners/password-reset-form** | Procesa el formulario: body email, token, password, passwordConfirm. Actualiza password en MongoDB (owner) y en Firebase (auth.updateUser), elimina resetToken. Responde con página HTML de éxito. Acepta application/x-www-form-urlencoded o JSON. Público. |
+| **Mail y URL** | `sendPasswordResetEmail(toEmail, recipientName, resetLink)` en mail.service.js. URL base del enlace: APP_PUBLIC_URL o PASSWORD_RESET_BASE_URL; en producción sin variable se usa https://perennialpark-api.onrender.com. |
