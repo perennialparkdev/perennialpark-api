@@ -906,7 +906,7 @@ ownersCtrl.passwordResetSubmit = async (req, res) => {
       title: 'Password updated',
       subtitle: 'Your password has been changed successfully.',
       formHtml: '<p class="message success">You can now sign in with your new password.</p>',
-      extraHtml: '<p class="link"><a href="/">Back to Perennial Park</a></p>',
+      extraHtml: '<p class="link"><a href="https://perennialpark.org/">Back to Perennial Park</a></p>',
     });
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.status(200).send(html);
