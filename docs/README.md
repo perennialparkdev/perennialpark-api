@@ -45,7 +45,8 @@
 
 - **Públicas:** create (POST), list (GET con from/to), getById (GET), update (PATCH).
 - **Protegida (solo admin):** delete (DELETE). Requiere Firebase Token + owner con idRol administrador.
-- **List:** filtra por `createdAt` entre from y to; devuelve comings, maybes y totales (totalHowManyMenComing, totalGuestsComing, total). Populate de owner y unit; incluye array checks. Ver [RSVPS.md](./RSVPS.md).
+- **List:** filtra por `createdAt` entre from y to; devuelve comings, maybes y totales (totalHowManyMenComing, totalGuestsComing, total). Populate de owner y unit; incluye array checks.
+- **List by unit:** `GET /api/rsvps/unit/:unitId?from=...&to=...` — registros RSVP de una unidad en un rango de fechas; respuesta array plano con populate. Ver [RSVPS.md](./RSVPS.md).
 
 ---
 

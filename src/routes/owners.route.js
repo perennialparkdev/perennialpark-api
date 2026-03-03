@@ -1,6 +1,6 @@
 /**
  * @fileoverview Rutas de owners.
- * checkUnitAccess, signUp, login (devuelve token). completeProfile (protegida).
+ * checkUnitAccess, checkPhoneLink, signUp, login (devuelve token). completeProfile (protegida).
  * invitation/validate y invitation/complete (públicas para formulario secundario).
  * @see .cursorrules - Routes pattern
  */
@@ -11,6 +11,7 @@ const ownersController = require('../controllers/owners.controller');
 const { verifyFirebaseToken } = require('../middlewares/verify-firebase-token');
 
 router.post('/check-unit', ownersController.checkUnitAccess);
+router.post('/check-phone', ownersController.checkPhoneLink);
 router.post('/signup', ownersController.signUp);
 router.post('/login', ownersController.login);
 

@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const Unit = require('../models/unit.model');
 const OwnerHusbandUser = require('../models/owner-husband-user.model');
 const OwnerWifeUser = require('../models/owner-wife-user.model');
+const PreliminarOwner = require('../models/preliminar-owner.model');
 const Children = require('../models/children.model');
 const { getAuth, getInitError } = require('../config/firebase');
 const { sendOwnerInvitationEmail, sendPasswordResetEmail } = require('../services/mail.service');
@@ -68,6 +69,55 @@ ownersCtrl.checkUnitAccess = async (req, res) => {
       data: { unitId: unit._id, unit_number: unit.unit_number },
     });
   } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Verifica a qué unidad está enlazado un número de teléfono.
+ * Body: { phone }. Busca primero en PreliminarOwner; si no, en OwnerHusbandUser / OwnerWifeUser.
+ * Respuestas: enlazado a unidad (preliminar), ya enlazado como owner, o no enlazado.
+ */
+ownersCtrl.checkPhoneLink = async (req, res) => {
+  try {
+    const rawPhone = req.body?.phone;
+    const phone = trim(rawPhone);
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'phone is required',
+      });
+    }
+
+    const preliminar = await PreliminarOwner.findOne({ husband_phone: phone }).lean();
+    if (preliminar?.unitId) {
+      const unit = await Unit.findById(preliminar.unitId).select('unit_number').lean();
+      const unitNumber = unit?.unit_number ?? preliminar.unitId.toString();
+      return res.status(200).json({
+        success: true,
+        message: `Your phone number is linked to unit number ${unitNumber}.`,
+        data: { unit_number: String(unitNumber) },
+      });
+    }
+
+    const [husband, wife] = await Promise.all([
+      OwnerHusbandUser.findOne({ husband_phone: phone }).lean(),
+      OwnerWifeUser.findOne({ wife_phone: phone }).lean(),
+    ]);
+    if (husband || wife) {
+      return res.status(200).json({
+        success: true,
+        message: 'This phone number is already linked to a unit as a registered owner.',
+        data: { linkedAsOwner: true },
+      });
+    }
+
+    return res.status(200).json({
+      success: false,
+      message: 'Your phone number is not linked to any unit.',
+    });
+  } catch (error) {
+    console.error('Owners checkPhoneLink error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -226,6 +276,8 @@ ownersCtrl.login = async (req, res) => {
       OwnerHusbandUser.findOne({ firebase_uid: uid }).populate('idRol').lean(),
       OwnerWifeUser.findOne({ firebase_uid: uid }).populate('idRol').lean(),
     ]);
+    console.log('husband:', husband);
+    console.log('wife:', wife);
     const owner = husband || wife;
     let ownerData = null;
     let unitData = null;
@@ -240,6 +292,7 @@ ownersCtrl.login = async (req, res) => {
           husband_email: husband.husband_email,
           husband_phone: husband.husband_phone,
           last_name: husband.last_name,
+          id: husband._id,
           role,
         };
       } else {
@@ -248,6 +301,7 @@ ownersCtrl.login = async (req, res) => {
           wife_first: wife.wife_first,
           wife_email: wife.wife_email,
           last_name: wife.last_name,
+          id: wife._id,
           role,
         };
       }
@@ -676,6 +730,11 @@ function renderResetFormPage(options) {
     .message.success { background: #ecfdf5; color: #047857; }
     .link { margin-top: 20px; text-align: center; font-size: 0.875rem; color: #6b7280; }
     .link a { color: #2d7a3e; text-decoration: none; }
+    .pw-wrap { position: relative; margin-bottom: 16px; }
+    .pw-wrap input { margin-bottom: 0; padding-right: 44px; }
+    .pw-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; color: #6b7280; line-height: 0; }
+    .pw-toggle:hover { color: #2d7a3e; }
+    .pw-toggle svg { width: 20px; height: 20px; display: block; }
   </style>
 </head>
 <body>
@@ -780,17 +839,39 @@ ownersCtrl.passwordResetForm = async (req, res) => {
       return res.status(400).send(html);
     }
 
+    const eyeSvg = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>';
+    const eyeOffSvg = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>';
     const formHtml = `
     <form method="post" action="/api/owners/password-reset-form" id="resetForm">
       <input type="hidden" name="token" value="${escapeHtml(token)}">
       <input type="hidden" name="email" value="${escapeHtml(email)}">
       <label for="password">New password</label>
-      <input type="password" id="password" name="password" minlength="6" required placeholder="Enter new password">
+      <div class="pw-wrap">
+        <input type="password" id="password" name="password" minlength="6" required placeholder="Enter new password">
+        <button type="button" class="pw-toggle" aria-label="Show password" title="Show password">${eyeSvg}</button>
+      </div>
       <label for="passwordConfirm">Confirm password</label>
-      <input type="password" id="passwordConfirm" name="passwordConfirm" minlength="6" required placeholder="Confirm new password">
+      <div class="pw-wrap">
+        <input type="password" id="passwordConfirm" name="passwordConfirm" minlength="6" required placeholder="Confirm new password">
+        <button type="button" class="pw-toggle" aria-label="Show password" title="Show password">${eyeSvg}</button>
+      </div>
       <button type="submit" class="btn">Reset Password</button>
     </form>
     <script>
+      var eyeOn = ${JSON.stringify(eyeSvg)};
+      var eyeOff = ${JSON.stringify(eyeOffSvg)};
+      function togglePw(inputId, btn) {
+        var el = document.getElementById(inputId);
+        var isHidden = el.type === 'password';
+        el.type = isHidden ? 'text' : 'password';
+        btn.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+        btn.setAttribute('title', isHidden ? 'Hide password' : 'Show password');
+        btn.innerHTML = isHidden ? eyeOff : eyeOn;
+      }
+      document.querySelectorAll('.pw-toggle').forEach(function(btn, i) {
+        var id = i === 0 ? 'password' : 'passwordConfirm';
+        btn.addEventListener('click', function() { togglePw(id, btn); });
+      });
       document.getElementById('resetForm').addEventListener('submit', function(e) {
         var p = document.getElementById('password').value;
         var c = document.getElementById('passwordConfirm').value;
