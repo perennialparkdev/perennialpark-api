@@ -32,6 +32,7 @@ Registros de citas RSVP: crear, listar por rango de fecha, obtener por ID, edita
 |--------|------|-------------|------|
 | `POST` | `/api/rsvps` | Crear registro RSVP. Body: status, howManyMen, guests, checks, idOwnerHusbandUser, idUnit (y opcional date). Valida que el owner exista y pertenezca a la unidad. | No |
 | `GET` | `/api/rsvps?from=...&to=...` | Listar por rango de fecha (createdAt). Query obligatorio: `from` y `to`. Devuelve comings, maybes, totales (howManyMen + guests para Coming). Incluye populate de owner y unit y array checks. | No |
+| `GET` | `/api/rsvps/unit/:unitId?from=...&to=...` | Listar registros RSVP de una unidad específica (`unitId`) en un rango de fechas (createdAt) usando `from` y `to`. Devuelve el array plano de registros con populate de owner y unit. | No |
 | `GET` | `/api/rsvps/:id` | Obtener un RSVP por ID. Incluye populate (owner: husband_first, husband_email, last_name; unit: unit_number) y array checks. | No |
 | `PATCH` | `/api/rsvps/:id` | Editar RSVP (status, howManyMen, guests, checks, date, y opcionalmente idOwnerHusbandUser/idUnit con validación owner→unit). | No |
 | `DELETE` | `/api/rsvps/:id` | Eliminar RSVP. **Solo** owners con rol administrador. | Sí (Owner Admin) |
@@ -214,7 +215,89 @@ GET /api/rsvps?from=2026-01-01&to=2026-12-31
 
 ---
 
-### 3. Obtener RSVP por ID (getById)
+### 3. Listar RSVP de una unidad por rango de fecha (listByUnit)
+
+- **Método**: `GET`
+- **Ruta**: `/api/rsvps/unit/:unitId?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- **Params**:
+  - `unitId` (path param): **obligatorio**, ObjectId de la unidad.
+  - `from` y `to` (query): **obligatorios**, fechas en formato ISO o interpretables por `Date`. El filtro se aplica sobre **createdAt**.
+
+Devuelve los registros cuyo `idUnit` coincide con `unitId` y cuyo `createdAt` está entre `from` y `to`, como un **array plano** (sin agregación de totales). Cada registro incluye **populate** de `idOwnerHusbandUser` (husband_first, husband_email, last_name) y de `idUnit` (unit_number), y el array **checks**.
+
+#### Ejemplo de petición
+
+```
+GET /api/rsvps/unit/674a1b2c3d4e5f6789012346?from=2026-01-01&to=2026-12-31
+```
+
+#### Response 200
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "674a1b2c3d4e5f6789019999",
+      "status": "Coming",
+      "date": "2026-04-10T19:00:00.000Z",
+      "howManyMen": 2,
+      "guests": 1,
+      "checks": [{ "check": "Kosher" }],
+      "idOwnerHusbandUser": {
+        "_id": "674a1b2c3d4e5f6789012345",
+        "husband_first": "John",
+        "husband_email": "john@example.com",
+        "last_name": "Doe"
+      },
+      "idUnit": {
+        "_id": "674a1b2c3d4e5f6789012346",
+        "unit_number": "101"
+      },
+      "createdAt": "2026-03-15T10:00:00.000Z",
+      "updatedAt": "2026-03-15T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+#### Response 400 — Validación
+
+```json
+{
+  "success": false,
+  "message": "Invalid unit id"
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "Query params \"from\" and \"to\" (date range) are required"
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "Invalid date format for \"from\" or \"to\""
+}
+```
+
+#### Response 500
+
+Internal error.
+
+```json
+{
+  "success": false,
+  "message": "<error message>"
+}
+```
+
+---
+
+### 4. Obtener RSVP por ID (getById)
 
 - **Método**: `GET`
 - **Ruta**: `/api/rsvps/:id`
@@ -266,7 +349,7 @@ Devuelve un único registro con **populate** de owner (husband_first, husband_em
 
 ---
 
-### 4. Editar RSVP (update)
+### 5. Editar RSVP (update)
 
 - **Método**: `PATCH`
 - **Ruta**: `/api/rsvps/:id`
@@ -330,7 +413,7 @@ Actualiza los campos enviados en el body. Si se envían `idOwnerHusbandUser` o `
 
 ---
 
-### 5. Eliminar RSVP (delete)
+### 6. Eliminar RSVP (delete)
 
 - **Método**: `DELETE`
 - **Ruta**: `/api/rsvps/:id`
@@ -412,12 +495,14 @@ Cada registro devuelto incluye el array **checks** completo.
 - **Rutas**: `src/routes/rsvp.route.js`
   - `POST /` → create (público).
   - `GET /` → list (query from, to; público).
+  - `GET /unit/:unitId` → listByUnit (query from, to; público).
   - `GET /:id` → getById (público).
   - `PATCH /:id` → update (público).
   - `DELETE /:id` → remove con **verifyFirebaseToken** + **verifyOwnerAdmin** (solo admin).
 - **Controlador**: `src/controllers/rsvp.controller.js`
   - **create**: valida idOwnerHusbandUser e idUnit, comprueba que el owner exista y que owner.unitId === idUnit, crea documento (incluye date opcional).
   - **list**: filtra por createdAt entre from y to, populate owner y unit, separa comings y maybes, calcula totalHowManyMenComing, totalGuestsComing y total.
+  - **listByUnit**: filtra por `idUnit` (path param unitId) y por createdAt entre from y to; devuelve array plano de registros con populate de owner y unit.
   - **getById**: findById con populate y array checks.
   - **update**: actualiza campos permitidos; si se cambian owner/unit, revalida pertenencia.
   - **remove**: findByIdAndDelete (solo accesible por ruta protegida).
@@ -469,6 +554,22 @@ if (data.success) {
 }
 ```
 
+### Listar RSVP de una unidad por rango de fecha
+
+```javascript
+const unitId = '674a1b2c3d4e5f6789012346';
+const from = '2026-01-01';
+const to = '2026-12-31';
+
+const { data } = await axios.get(
+  `${API_URL}/api/rsvps/unit/${unitId}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+);
+
+if (data.success) {
+  const list = data.data; // array plano de registros RSVP de esa unidad
+}
+```
+
 ### Obtener por ID
 
 ```javascript
@@ -515,6 +616,7 @@ await axios.delete(`${API_URL}/api/rsvps/${rsvpId}`, {
 | **Modelo RsvpRegister** | Colección `rsvp_registers`. Campos: status (Coming, Maybe, Not Coming), date, howManyMen, guests, checks (array de { check }), idOwnerHusbandUser (ref OwnerHusbandUser), idUnit (ref Unit). |
 | **POST /api/rsvps** | Crear RSVP. Valida que el owner exista y pertenezca a la unidad. Body: idOwnerHusbandUser, idUnit (requeridos); status, howManyMen, guests, checks, date (opcionales). Respuestas en inglés. |
 | **GET /api/rsvps** | Listar por rango de fecha. Query obligatorio: from, to (filtro por createdAt). Respuesta: comings, maybes, totalHowManyMenComing, totalGuestsComing, total. Populate de owner (husband_first, husband_email, last_name) y unit (unit_number). Incluye array checks en cada registro. |
+| **GET /api/rsvps/unit/:unitId** | Listar RSVP de una unidad por ID y rango de fechas. Query obligatorio: from, to (filtro por createdAt). Path param: unitId (ObjectId de la unidad). Respuesta: array plano de registros con populate de owner y unit. Público. |
 | **GET /api/rsvps/:id** | Obtener por ID. Populate y array checks incluidos. |
 | **PATCH /api/rsvps/:id** | Actualizar campos (status, howManyMen, guests, checks, date, idOwnerHusbandUser, idUnit). Si se cambian owner/unit, se revalida pertenencia. |
 | **DELETE /api/rsvps/:id** | Eliminar RSVP. Solo accesible por owners con idRol administrador (verifyFirebaseToken + verifyOwnerAdmin). |

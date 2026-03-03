@@ -263,6 +263,60 @@ rsvpCtrl.list = async (req, res) => {
   }
 };
 
+/**
+ * Listar registros RSVP de una unidad por ID y rango de fechas.
+ * GET /api/rsvps/unit/:unitId?from=...&to=...
+ * Filtra por idUnit y createdAt; devuelve array plano con populate de owner y unit.
+ */
+rsvpCtrl.listByUnit = async (req, res) => {
+  try {
+    const unitId = req.params.unitId;
+    const from = req.query.from;
+    const to = req.query.to;
+
+    if (!unitId || !mongoose.Types.ObjectId.isValid(unitId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid unit id',
+      });
+    }
+
+    if (!from || !to) {
+      return res.status(400).json({
+        success: false,
+        message: 'Query params \"from\" and \"to\" (date range) are required',
+      });
+    }
+
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format for \"from\" or \"to\"',
+      });
+    }
+
+    const filter = {
+      idUnit: new mongoose.Types.ObjectId(unitId),
+      createdAt: { $gte: fromDate, $lte: toDate },
+    };
+
+    const list = await RsvpRegister.find(filter)
+      .populate(POPULATE_OWNER)
+      .populate(POPULATE_UNIT)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: list,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 rsvpCtrl.remove = async (req, res) => {
   try {
     const id = req.params.id;

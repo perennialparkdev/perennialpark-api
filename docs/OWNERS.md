@@ -16,7 +16,7 @@
 
 | Aspecto | Detalle |
 |--------|---------|
-| **Auth** | **check-unit**, **signup**, **login**, **invitation/validate**, **invitation/complete**, **password-request** y **password-reset-form** (GET/POST) son **públicas**. **complete-profile** requiere `Authorization: Bearer <idToken>`. |
+| **Auth** | **check-unit**, **check-phone**, **signup**, **login**, **invitation/validate**, **invitation/complete**, **password-request** y **password-reset-form** (GET/POST) son **públicas**. **complete-profile** requiere `Authorization: Bearer <idToken>`. |
 | **Token** | Tras **login** el cliente recibe un `idToken`; debe enviarlo en header `Authorization: Bearer <token>` en **complete-profile**. El middleware `verifyFirebaseToken` valida el token y expone `req.user = { uid, email }`. |
 | **Headers** | `Content-Type: application/json` para body; en **complete-profile** además `Authorization: Bearer <token>`. |
 
@@ -27,6 +27,7 @@
 | Método | Ruta | Descripción | Auth |
 |--------|------|-------------|------|
 | `POST` | `/api/owners/check-unit` | Validar acceso por número de unidad (usuario/contrasena = unit_number). Si la unidad ya tiene owner(s), no puede ingresar. | No |
+| `POST` | `/api/owners/check-phone` | Verificar a qué unidad está enlazado un número de teléfono. Busca en PreliminarOwner; si no, en OwnerHusbandUser/OwnerWifeUser. Devuelve unidad (preliminar), ya enlazado como owner, o no enlazado. | No |
 | `POST` | `/api/owners/signup` | Registrar usuario en Firebase Auth (email + contraseña). Devuelve `email` y `uid`. | No |
 | `POST` | `/api/owners/login` | Iniciar sesión con email y contraseña. Devuelve `token` (idToken), `owner` (datos husband/wife + rol) y `unit` (unit_number, address) si está registrado como owner. | No |
 | `POST` | `/api/owners/complete-profile` | Formulario primario: unit, husband, wife, children. El email del token debe coincidir con husband_email o wife_email. Crea owner activo (status 1) y opcionalmente pendiente (status -1) con invitación por correo. | Sí (Bearer) |
@@ -130,7 +131,88 @@ Internal error (e.g. database).
 
 ---
 
-### 2. Registro de usuario (signup)
+### 2. Verificar enlace de teléfono (check-phone)
+
+- **Método**: `POST`
+- **Ruta**: `/api/owners/check-phone`
+- **Content-Type**: `application/json`
+
+Comprueba si un número de teléfono está enlazado a alguna unidad. La API busca **primero** en **PreliminarOwner** (por `husband_phone`); si no lo encuentra, busca en **OwnerHusbandUser** (`husband_phone`) y **OwnerWifeUser** (`wife_phone`). Según el caso devuelve: enlazado a unidad (preliminar), ya enlazado como owner registrado, o no enlazado.
+
+#### Request body
+
+```json
+{
+  "phone": "+1 555 123 4567"
+}
+```
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `phone` | string | Sí | Número de teléfono a verificar (se aplica `trim`; vacío devuelve 400). |
+
+#### Response 200 — Teléfono enlazado a unidad (preliminar)
+
+El número está en un registro **PreliminarOwner** de una unidad.
+
+```json
+{
+  "success": true,
+  "message": "Your phone number is linked to unit number 42.",
+  "data": {
+    "unit_number": "42"
+  }
+}
+```
+
+#### Response 200 — Teléfono ya enlazado como owner
+
+El número está en **OwnerHusbandUser** u **OwnerWifeUser** (propietario registrado).
+
+```json
+{
+  "success": true,
+  "message": "This phone number is already linked to a unit as a registered owner.",
+  "data": {
+    "linkedAsOwner": true
+  }
+}
+```
+
+#### Response 200 — Teléfono no enlazado
+
+No se encontró el número en PreliminarOwner ni en owners.
+
+```json
+{
+  "success": false,
+  "message": "Your phone number is not linked to any unit."
+}
+```
+
+#### Response 400 — Falta el teléfono
+
+```json
+{
+  "success": false,
+  "message": "phone is required"
+}
+```
+
+#### Response 500
+
+Error interno (base de datos, etc.).
+
+```json
+{
+  "success": false,
+  "message": "<error message>"
+}
+```
+
+---
+
+### 3. Registro de usuario (signup)
 
 - **Método**: `POST`
 - **Ruta**: `/api/owners/signup`
@@ -206,7 +288,7 @@ Firebase Admin credentials not configured or invalid.
 
 ---
 
-### 3. Iniciar sesión (login)
+### 4. Iniciar sesión (login)
 
 - **Método**: `POST`
 - **Ruta**: `/api/owners/login`
@@ -312,7 +394,7 @@ Internal error.
 
 ---
 
-### 4. Completar perfil (formulario primario) — complete-profile
+### 5. Completar perfil (formulario primario) — complete-profile
 
 - **Método**: `POST`
 - **Ruta**: `/api/owners/complete-profile`
@@ -408,7 +490,7 @@ One of the emails is already registered as an owner for another unit.
 
 ---
 
-### 5. Validar invitación (formulario dinámico) — invitation/validate
+### 6. Validar invitación (formulario dinámico) — invitation/validate
 
 - **Método**: `POST`
 - **Ruta**: `/api/owners/invitation/validate`
@@ -470,7 +552,7 @@ El co-propietario que recibió el correo de invitación envía su **email** y el
 
 ---
 
-### 6. Completar invitación (activar cuenta) — invitation/complete
+### 7. Completar invitación (activar cuenta) — invitation/complete
 
 - **Método**: `POST`
 - **Ruta**: `/api/owners/invitation/complete`
@@ -532,7 +614,7 @@ El co-propietario envía **email**, **token** y los campos que faltan (incluida 
 
 ---
 
-### 7. Solicitar cambio de contraseña (password-request)
+### 8. Solicitar cambio de contraseña (password-request)
 
 - **Método**: `POST`
 - **Ruta**: `/api/owners/password-request`
@@ -586,7 +668,7 @@ Si Nodemailer falla al enviar el correo:
 
 ---
 
-### 8. Formulario MVC de cambio de contraseña (password-reset-form)
+### 9. Formulario MVC de cambio de contraseña (password-reset-form)
 
 El flujo de cambio de contraseña incluye una **vista servida por la API** (MVC): una página HTML con el estilo Perennial Park (card blanca, verde, fondo degradado) donde el usuario introduce la nueva contraseña. No depende del frontend de la aplicación.
 
@@ -679,18 +761,20 @@ O **Body** → raw → JSON:
 | Modelo | Archivo | Uso |
 |--------|---------|-----|
 | Unit | `src/models/unit.model.js` | Búsqueda por `unit_number` (check-unit, etc.). |
-| OwnerHusbandUser | `src/models/owner-husband-user.model.js` | Owners por `unitId`; `invitationToken` (invitación); **`resetToken`** (cambio de contraseña). |
-| OwnerWifeUser | `src/models/owner-wife-user.model.js` | Owners por `unitId`; `invitationToken` (invitación); **`resetToken`** (cambio de contraseña). |
+| PreliminarOwner | `src/models/preliminar-owner.model.js` | Datos preliminares por unidad (`unitId`, `husband_phone`, `last_name`). Usado en **check-phone** para verificar enlace por teléfono. |
+| OwnerHusbandUser | `src/models/owner-husband-user.model.js` | Owners por `unitId`; `husband_phone` (check-phone); `invitationToken` (invitación); **`resetToken`** (cambio de contraseña). |
+| OwnerWifeUser | `src/models/owner-wife-user.model.js` | Owners por `unitId`; `wife_phone` (check-phone); `invitationToken` (invitación); **`resetToken`** (cambio de contraseña). |
 
 ---
 
 ## 📘 Guía backend
 
 - **Rutas**: `src/routes/owners.route.js`:
-  - Públicas: `POST /check-unit`, `POST /signup`, `POST /login`, `POST /invitation/validate`, `POST /invitation/complete`, `POST /password-request`, `GET /password-reset-form`, `POST /password-reset-form`.
+  - Públicas: `POST /check-unit`, `POST /check-phone`, `POST /signup`, `POST /login`, `POST /invitation/validate`, `POST /invitation/complete`, `POST /password-request`, `GET /password-reset-form`, `POST /password-reset-form`.
   - Protegida con `verifyFirebaseToken`: `POST /complete-profile`.
 - **Controlador**: `src/controllers/owners.controller.js`:
   - **checkUnitAccess**: valida `usuario`/`contrasena` = unit_number, busca Unit y owners; 200 si puede ingresar, 403 si ya tiene owners.
+  - **checkPhoneLink**: recibe `phone`; busca en PreliminarOwner (`husband_phone`), luego en OwnerHusbandUser/OwnerWifeUser; devuelve unidad (preliminar), ya enlazado como owner, o no enlazado.
   - **signUp**: crea usuario en Firebase Auth; devuelve email y uid; 409 si el correo ya existe.
   - **login**: Firebase REST API `signInWithPassword`; devuelve `token`, `expiresIn`, `uid`, `email`, `owner` (datos del owner husband/wife si existe) y `unit` (unit_number, address).
   - **completeProfile**: exige que `req.user.email` coincida con husband_email o wife_email; crea Unit (o la busca), owner activo (status 1), opcionalmente owner pendiente (status -1) con `invitationToken` y envío de correo (Nodemailer), y Children.
@@ -931,6 +1015,7 @@ El usuario recibe el correo y abre el enlace en el navegador; la API sirve el fo
 |------------------|--------|
 | **Módulo Owners** | Rutas en `src/routes/owners.route.js`, controlador en `src/controllers/owners.controller.js`. |
 | **POST /api/owners/check-unit** | Validación de acceso por `unit_number` enviado como `usuario` y `contrasena`; consulta a Unit, OwnerHusbandUser y OwnerWifeUser; 200 si puede ingresar, 403 si ya tiene owners, 404 si la unidad no existe. |
+| **POST /api/owners/check-phone** | Verificación de enlace por teléfono: body `{ phone }`. Busca en PreliminarOwner; si no, en OwnerHusbandUser/OwnerWifeUser. Respuestas: enlazado a unidad (preliminar), ya enlazado como owner, o no enlazado. Público. |
 | **POST /api/owners/signup** | Registro en Firebase Auth (email + contraseña). Devuelve `email` y `uid`. 201 creado, 409 correo ya existe, 400 validación, 503 Firebase no disponible. |
 | **POST /api/owners/login** | Login vía Firebase REST API (signInWithPassword). Devuelve `token` (idToken), `expiresIn`, `uid`, `email`, `owner` (datos husband/wife si está registrado) y `unit` (unit_number, address). El token se envía en `Authorization: Bearer <token>` para rutas protegidas con `verifyFirebaseToken`. |
 | **POST /api/owners/complete-profile** | Formulario primario (unit, husband, wife, children). Requiere token. El email del token debe ser husband_email o wife_email. Crea Unit, owner activo (status 1), opcionalmente owner pendiente (status -1) con invitationToken y correo de invitación (Nodemailer), y Children. |

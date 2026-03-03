@@ -13,6 +13,7 @@ const requireOwnerAdmin = [verifyFirebaseToken, verifyOwnerAdmin];
 
 router.post('/', rsvpController.create);
 router.get('/', rsvpController.list);
+router.get('/unit/:unitId', rsvpController.listByUnit);
 router.get('/:id', rsvpController.getById);
 router.patch('/:id', rsvpController.update);
 router.delete('/:id', requireOwnerAdmin, rsvpController.remove);
