@@ -12,6 +12,7 @@
 | [**UNITS.md**](./UNITS.md) | API de **Units**: CRUD de unidades (crear, listar, obtener, editar, eliminar, activar, anular). Incluye preliminar_owner, unlink, reset-password y send-invitation para administradores. Solo accesible por owners con idRol administrador. |
 | [**ROLES.md**](./ROLES.md) | API de **Roles**: CRUD de roles (crear, listar, obtener, editar, activar, anular). Respuestas en inglés. Solo accesible por owners con idRol administrador. |
 | [**MEETINGS-STRUCTURE.md**](./MEETINGS-STRUCTURE.md) | Estructura **Categories, Types y reuniones/anuncios**: cómo funcionan los modelos Category, Type, Meeting y modelos especiales (ShabbosMevorchimMeeting, DafYomiMeeting, etc.), a qué Type pertenece cada uno y a qué Category cada Type. Incluye script de seed. |
+| [**RSVPS.md**](./RSVPS.md) | API de **RSVP**: CRUD de registros de citas (create, list por rango de fecha, getById, update). Delete solo para owners con rol administrador. Incluye totales para Coming (howManyMen + guests) y array checks. |
 
 ---
 
@@ -39,6 +40,12 @@
 - **Todas protegidas** por Firebase Token + rol owner administrador.
 - **GET `/api/meetings/structure`**: devuelve categorías con tipos; cada tipo incluye `modelKey` y `fields` para que el frontend sepa qué modelo y campos usar.
 - **CRUD por modelKey:** `GET/POST /api/meetings/:modelKey`, `GET/PATCH /api/meetings/:modelKey/:id`, `PATCH .../activate`, `PATCH .../anular`. ModelKeys: `meeting`, `shabbos-mevorchim-meeting`, `daf-yomi-meeting`, `additional-shiurim-meeting`, `announcements-notes-meeting`, `pirkei-avis-shiur-announcements`, `mazel-tov-announcements`, `avos-ubonim-sponsor-announcements`. Ver [MEETINGS-STRUCTURE.md](./MEETINGS-STRUCTURE.md).
+
+### RSVP (`/api/rsvps`)
+
+- **Públicas:** create (POST), list (GET con from/to), getById (GET), update (PATCH).
+- **Protegida (solo admin):** delete (DELETE). Requiere Firebase Token + owner con idRol administrador.
+- **List:** filtra por `createdAt` entre from y to; devuelve comings, maybes y totales (totalHowManyMenComing, totalGuestsComing, total). Populate de owner y unit; incluye array checks. Ver [RSVPS.md](./RSVPS.md).
 
 ---
 
