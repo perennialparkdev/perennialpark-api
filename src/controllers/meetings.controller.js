@@ -1,6 +1,7 @@
 /**
  * @fileoverview CRUD de meetings y announcements por modelKey.
  * Rutas: /api/meetings/:modelKey (list, create), /api/meetings/:modelKey/:id (get, update, activate, anular).
+ * List acepta query period (YYYY-MM-DD). DELETE /period/:period elimina todos los registros de esa semana.
  */
 
 const mongoose = require('mongoose');
@@ -8,10 +9,22 @@ const {
   getModelByKey,
   getFieldsForModelKey,
   getAllModelKeys,
+  MODELS_BY_KEY,
   STATUS,
 } = require('../config/meetingModels.config');
 
 const meetingsCtrl = {};
+
+/** Formato period: YYYY-MM-DD (lunes de la semana, semana lunes–domingo). */
+const PERIOD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidPeriod(value) {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!PERIOD_REGEX.test(trimmed)) return false;
+  const date = new Date(trimmed);
+  return !Number.isNaN(date.getTime());
+}
 
 function trim(val) {
   if (val == null) return null;
@@ -59,9 +72,20 @@ meetingsCtrl.list = async (req, res) => {
 
     const status = req.query.status != null ? Number(req.query.status) : null;
     const idType = req.query.idType ? (mongoose.Types.ObjectId.isValid(req.query.idType) ? req.query.idType : null) : null;
+    const periodRaw = req.query.period;
     const filter = {};
     if (status != null) filter.status = status;
     if (idType) filter.idType = idType;
+    if (periodRaw != null && periodRaw !== '') {
+      const period = String(periodRaw).trim();
+      if (!isValidPeriod(period)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid period. Use YYYY-MM-DD (e.g. 2026-03-02 for the Monday of the week).',
+        });
+      }
+      filter.period = period;
+    }
 
     const list = await Model.find(filter).sort({ createdAt: -1 }).lean();
     res.status(200).json({ success: true, data: list });
@@ -173,6 +197,39 @@ meetingsCtrl.anular = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Not found' });
     }
     res.status(200).json({ success: true, message: 'Deactivated successfully', data: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * DELETE /api/meetings/period/:period
+ * Elimina todos los registros (meetings y announcements) cuya semana sea la indicada.
+ * period: YYYY-MM-DD (lunes de la semana).
+ */
+meetingsCtrl.deleteByPeriod = async (req, res) => {
+  try {
+    const period = req.params.period ? String(req.params.period).trim() : '';
+    if (!isValidPeriod(period)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid period. Use YYYY-MM-DD (e.g. 2026-03-02 for the Monday of the week).',
+      });
+    }
+
+    const deletedByModel = {};
+    let totalDeleted = 0;
+    for (const [modelKey, Model] of Object.entries(MODELS_BY_KEY)) {
+      const result = await Model.deleteMany({ period });
+      deletedByModel[modelKey] = result.deletedCount;
+      totalDeleted += result.deletedCount;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `All records for period ${period} have been deleted.`,
+      data: { period, deletedByModel, totalDeleted },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

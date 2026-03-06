@@ -30,10 +30,20 @@ Incluye:
 | Aspecto | Detalle |
 |--------|---------|
 | **Base URL** | `/api/meetings` |
-| **Auth** | **Todas** las rutas de este módulo requieren token Firebase + rol **owner admin**. |
+| **Auth** | **Todas** las rutas requieren token Firebase + rol **owner admin o gabaim** (Manage Davening Times). |
 | **Token** | Se envía en header `Authorization: Bearer <idToken>` igual que en Units/Roles. |
-| **Rol admin** | El middleware `verifyOwnerAdmin` comprueba que el `firebase_uid` del token pertenece a un Owner (husband o wife) con `idRol` administrador. |
+| **Roles** | El middleware `verifyOwnerAdminOrGabaim` comprueba que el owner (husband o wife) tenga `idRol` de **administrador** o **gabaim** (Davening Times Only). |
 | **Headers** | `Content-Type: application/json` para los endpoints con body. |
+
+### Formato del campo `period` (semana)
+
+Para que API y frontend coincidan, **`period`** se define así:
+
+- **Formato:** `YYYY-MM-DD` (fecha en ISO).
+- **Significado:** Fecha del **lunes** de la semana. La semana va de **lunes a domingo**.
+- **Ejemplo:** `2026-03-02` = semana del lunes 2 de marzo al domingo 8 de marzo de 2026.
+
+Todas las operaciones que usen semana (list con filtro `period`, create/update con `period`, delete por semana) deben usar el mismo valor para una misma semana (el lunes en `YYYY-MM-DD`).
 
 ---
 
@@ -43,7 +53,7 @@ Incluye:
 
 | Método | Ruta | Descripción | Auth |
 |--------|------|-------------|------|
-| `GET` | `/api/meetings/structure` | Devuelve **todas las categorías** con sus **types**, y para cada type: `_id`, `name`, `weekDay`, `modelKey` y `fields`. Es la “guía” para saber qué modelo usar y qué campos mostrar. | Sí (Bearer + owner admin) |
+| `GET` | `/api/meetings/structure` | Devuelve **todas las categorías** con sus **types**, y para cada type: `_id`, `name`, `weekDay`, `modelKey` y `fields`. Es la “guía” para saber qué modelo usar y qué campos mostrar. | Sí (Bearer + admin o gabaim) |
 
 ### CRUD genérico por `modelKey`
 
@@ -59,7 +69,8 @@ ModelKeys permitidos actualmente:
 
 | Método | Ruta | Descripción | Auth |
 |--------|------|-------------|------|
-| `GET` | `/api/meetings/:modelKey` | Lista registros de ese modelo. Se puede filtrar por `status` e `idType`. | Sí |
+| `GET` | `/api/meetings/:modelKey` | Lista registros de ese modelo. Query opcionales: `status`, `idType`, `period` (YYYY-MM-DD, lunes de la semana). | Sí |
+| `DELETE` | `/api/meetings/period/:period` | Elimina **todos** los registros (todos los modelKeys) cuya semana sea `period` (YYYY-MM-DD). Devuelve conteo por modelo. | Sí |
 | `POST` | `/api/meetings/:modelKey` | Crea un nuevo registro en la colección asociada al `modelKey`. Requiere `idType` + campos del modelo. | Sí |
 | `GET` | `/api/meetings/:modelKey/:id` | Obtiene un registro por `_id`. | Sí |
 | `PATCH` | `/api/meetings/:modelKey/:id` | Actualiza campos permitidos del modelo. | Sí |
@@ -117,7 +128,7 @@ El **frontend** usa esta información para:
 | Código | Caso |
 |--------|------|
 | `401` | Token faltante o inválido (middleware `verifyFirebaseToken`). |
-| `403` | El usuario no es owner admin (`verifyOwnerAdmin`). |
+| `403` | El usuario no es owner admin ni gabaim (`verifyOwnerAdminOrGabaim`). |
 | `500` | Error interno al leer categorías/types. |
 
 ---
@@ -132,6 +143,7 @@ Lista registros de la colección asociada al `modelKey`.
 Opciones de filtrado:
 - `status` (1 = activo, 2 = inactivo/anulado).
 - `idType` (ObjectId de Type).
+- `period` (YYYY-MM-DD: lunes de la semana; ver [Formato del campo period](#formato-del-campo-period-semana)).
 
 #### Query params
 
@@ -139,11 +151,12 @@ Opciones de filtrado:
 |-------|------|-----------|-------------|
 | `status` | number | No | Filtra por estado (`1` activo, `2` inactivo). |
 | `idType` | string (ObjectId) | No | Filtra solo los registros de un Type concreto. |
+| `period` | string (YYYY-MM-DD) | No | Filtra por semana (lunes de la semana). Ej.: `2026-03-02`. |
 
 #### Ejemplo de petición
 
 ```http
-GET /api/meetings/meeting?status=1&idType=69a521a9f8c0fd1685c98bc6
+GET /api/meetings/meeting?status=1&idType=69a521a9f8c0fd1685c98bc6&period=2026-03-02
 Authorization: Bearer <token>
 ```
 
@@ -158,7 +171,7 @@ Authorization: Bearer <token>
       "name": "Shachris 7:00 AM",
       "location": "Main Shul",
       "time": "07:00",
-      "period": "Weekly",
+      "period": "2026-03-02",
       "status": 1,
       "idType": "69a521a9f8c0fd1685c98bc6"
     }
@@ -170,13 +183,61 @@ Authorization: Bearer <token>
 
 | Código | Caso |
 |--------|------|
-| `400` | `modelKey` inválido. |
+| `400` | `modelKey` inválido, o `period` con formato distinto de YYYY-MM-DD. |
 | `401` / `403` | Auth/rol fallido. |
 | `500` | Error interno. |
 
 ---
 
-### 3. Crear registro por `modelKey`
+### 3. Eliminar todos los registros de una semana — `DELETE /period/:period`
+
+- **Método**: `DELETE`  
+- **Ruta**: `/api/meetings/period/:period`  
+- **Headers**: `Authorization: Bearer <idToken>`
+
+Elimina **todos** los registros (en todas las colecciones de meetings y announcements) cuya semana sea la indicada.  
+`period` debe ser la fecha del **lunes** de la semana en formato **YYYY-MM-DD** (mismo criterio que el filtro de list y el campo `period` al crear/editar).
+
+#### Parámetro path
+
+| Param | Tipo | Descripción |
+|-------|------|-------------|
+| `period` | string | Lunes de la semana en YYYY-MM-DD. Ej.: `2026-03-02`. |
+
+#### Respuesta 200
+
+```json
+{
+  "success": true,
+  "message": "All records for period 2026-03-02 have been deleted.",
+  "data": {
+    "period": "2026-03-02",
+    "deletedByModel": {
+      "meeting": 12,
+      "shabbos-mevorchim-meeting": 1,
+      "daf-yomi-meeting": 1,
+      "additional-shiurim-meeting": 3,
+      "announcements-notes-meeting": 1,
+      "pirkei-avis-shiur-announcements": 1,
+      "mazel-tov-announcements": 0,
+      "avos-ubonim-sponsor-announcements": 1
+    },
+    "totalDeleted": 20
+  }
+}
+```
+
+#### Errores
+
+| Código | Caso |
+|--------|------|
+| `400` | `period` inválido (formato distinto de YYYY-MM-DD o fecha no válida). |
+| `401` / `403` | Auth o rol (debe ser admin o gabaim). |
+| `500` | Error interno. |
+
+---
+
+### 4. Crear registro por `modelKey`
 
 - **Método**: `POST`  
 - **Ruta**: `/api/meetings/:modelKey`  
@@ -244,7 +305,7 @@ Content-Type: application/json
     "name": "Shachris 7:00 AM",
     "location": "Main Shul",
     "time": "07:00",
-    "period": "Weekly",
+    "period": "2026-03-02",
     "status": 1
   }
 }
@@ -260,7 +321,7 @@ Content-Type: application/json
 
 ---
 
-### 4. Obtener, actualizar, activar y anular
+### 5. Obtener, actualizar, activar y anular
 
 #### Obtener por id
 
@@ -389,7 +450,8 @@ El script **no crea registros** en las colecciones de meetings/announcements, so
 
 - **Rutas**: `src/routes/meetings.route.js`
   - `GET /structure` — usa `meetingStructure.controller.getStructure`.
-  - `GET /:modelKey` — lista registros (`meetings.controller.list`).
+  - `GET /:modelKey` — lista registros (`meetings.controller.list`); query opcionales: `status`, `idType`, `period` (YYYY-MM-DD).
+  - `DELETE /period/:period` — elimina todos los registros de esa semana en todos los modelos (`meetings.controller.deleteByPeriod`).
   - `POST /:modelKey` — crea registro (`meetings.controller.create`).
   - `GET /:modelKey/:id` — obtiene registro (`meetings.controller.getById`).
   - `PATCH /:modelKey/:id` — actualiza (`meetings.controller.update`).
@@ -398,15 +460,16 @@ El script **no crea registros** en las colecciones de meetings/announcements, so
 
 - **Middlewares**:
   - `verifyFirebaseToken` — valida el token y pone `req.user = { uid, email }`.
-  - `verifyOwnerAdmin` — comprueba que el owner (husband/wife) tenga rol admin.
-  - En `meetings.route.js` se define `router.use([verifyFirebaseToken, verifyOwnerAdmin])`.
+  - `verifyOwnerAdminOrGabaim` — comprueba que el owner (husband/wife) tenga rol **admin** o **gabaim** (Davening Times). ID gabaim: `69a4fe4c1c49fa661fecae13` (o `GABAIM_ROL_ID` en .env).
+  - En `meetings.route.js` se usa `router.use([verifyFirebaseToken, verifyOwnerAdminOrGabaim])`.
 
 - **Controladores**:
   - `src/controllers/meetingStructure.controller.js`:
     - Lee `Category` y `Type`, y con `getModelInfo` agrega `modelKey` y `fields`.
   - `src/controllers/meetings.controller.js`:
-    - Usa `getModelByKey` para resolver `modelKey` → Modelo Mongoose.
-    - Usa `getFieldsForModelKey` para permitir solo ciertos campos en create/update.
+    - Usa `getModelByKey` y `MODELS_BY_KEY` para resolver modelos.
+    - **list**: acepta query `period` (YYYY-MM-DD); valida con `isValidPeriod`.
+    - **deleteByPeriod**: recibe `period` por path, valida formato y ejecuta `deleteMany({ period })` en todos los modelos de `MODELS_BY_KEY`.
     - Implementa lógica genérica de list/get/create/update/activate/anular.
 
 - **Config de mapeo**:
@@ -474,19 +537,23 @@ Para otros types (Announcements, Shiurim, Shabbos Mevorchim, etc.) el **modelo d
 3) dibujas el formulario dinámicamente,  
 4) haces POST a `/api/meetings/:modelKey` con `idType` + esos campos.
 
-### 3. Listar y filtrar por type
+### 3. Listar y filtrar por type y por semana (period)
 
 ```javascript
+// Por type (y opcionalmente por semana)
+const period = '2026-03-02'; // lunes de la semana (YYYY-MM-DD)
 const { data } = await axios.get(
   `${API_URL}/api/meetings/meeting`,
   {
-    params: { status: 1, idType },
+    params: { status: 1, idType, period }, // period opcional
     headers: { Authorization: `Bearer ${token}` },
   }
 );
 
-const meetings = data.data; // registros de ese type/modelKey
+const meetings = data.data; // registros de ese type/modelKey (y semana si se envió period)
 ```
+
+Para obtener **todos** los datos de una semana en el front, se pueden hacer varias llamadas a `GET /:modelKey` con el mismo `period` y distintos `modelKey`/`idType`, o una por cada tipo que se necesite.
 
 ### 4. Activar / anular / editar
 
@@ -511,6 +578,20 @@ await axios.patch(
   { time: '07:15' },
   { headers: { Authorization: `Bearer ${token}` } }
 );
+```
+
+### 5. Eliminar todos los registros de una semana
+
+```javascript
+const period = '2026-03-02'; // lunes de la semana (YYYY-MM-DD)
+const { data } = await axios.delete(
+  `${API_URL}/api/meetings/period/${encodeURIComponent(period)}`,
+  { headers: { Authorization: `Bearer ${token}` } }
+);
+
+if (data.success) {
+  console.log('Deleted:', data.data.totalDeleted, data.data.deletedByModel);
+}
 ```
 
 ---
@@ -546,3 +627,6 @@ todo se resuelve vía `structure` → `modelKey` → rutas CRUD.
 | **Script seed** | `scripts/seed-meetings-structure.js` siembra categorías y types (Minyanim, Shabbos, Shiurim, Announcements). |
 | **Endpoint `/api/meetings/structure`** | Devuelve categorías con types, incluyendo `modelKey` y `fields` para que el frontend sepa qué modelo y campos usar. |
 | **CRUD por `modelKey`** | `src/controllers/meetings.controller.js` y `src/routes/meetings.route.js` permiten crear/listar/editar/activar/anular registros de todos los modelos a través de un único patrón de rutas. |
+| **Auth admin o gabaim** | Rutas de meetings protegidas con `verifyOwnerAdminOrGabaim` (admin o rol gabaim `69a4fe4c1c49fa661fecae13`). Middleware en `src/middlewares/verify-owner-admin-or-gabaim.js`. |
+| **Campo `period` y filtro por semana** | Formato: `YYYY-MM-DD` (lunes de la semana; semana lunes–domingo). List acepta query `period`; create/update envían `period` en body. Documentado en esta guía. |
+| **DELETE /api/meetings/period/:period** | Elimina todos los registros (todos los modelKeys) cuya semana sea la indicada. Respuesta incluye `deletedByModel` y `totalDeleted`. |
