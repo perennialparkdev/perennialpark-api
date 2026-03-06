@@ -37,9 +37,10 @@
 
 ### Meetings (`/api/meetings`)
 
-- **Todas protegidas** por Firebase Token + rol owner administrador.
-- **GET `/api/meetings/structure`**: devuelve categorías con tipos; cada tipo incluye `modelKey` y `fields` para que el frontend sepa qué modelo y campos usar.
-- **CRUD por modelKey:** `GET/POST /api/meetings/:modelKey`, `GET/PATCH /api/meetings/:modelKey/:id`, `PATCH .../activate`, `PATCH .../anular`. ModelKeys: `meeting`, `shabbos-mevorchim-meeting`, `daf-yomi-meeting`, `additional-shiurim-meeting`, `announcements-notes-meeting`, `pirkei-avis-shiur-announcements`, `mazel-tov-announcements`, `avos-ubonim-sponsor-announcements`. Ver [MEETINGS-STRUCTURE.md](./MEETINGS-STRUCTURE.md).
+- **Todas protegidas** por Firebase Token + rol **owner admin o gabaim** (Manage Davening Times).
+- **GET `/api/meetings/structure`**: devuelve categorías con tipos; cada tipo incluye `modelKey` y `fields`. **List** acepta query `period` (YYYY-MM-DD, lunes de la semana).
+- **DELETE `/api/meetings/period/:period`**: elimina todos los registros de esa semana (todos los modelKeys).
+- **CRUD por modelKey:** `GET/POST /api/meetings/:modelKey`, `GET/PATCH /api/meetings/:modelKey/:id`, `PATCH .../activate`, `PATCH .../anular`. Ver [MEETINGS-STRUCTURE.md](./MEETINGS-STRUCTURE.md).
 
 ### RSVP (`/api/rsvps`)
 

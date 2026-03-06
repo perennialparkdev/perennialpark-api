@@ -2,7 +2,8 @@
  * @fileoverview Rutas de meeting-structure y CRUD por modelKey.
  * GET /structure devuelve categorías con tipos, modelKey y campos.
  * CRUD bajo /:modelKey (list, create) y /:modelKey/:id (get, update, activate, anular).
- * Protegidas por verifyFirebaseToken + verifyOwnerAdmin.
+ * DELETE /period/:period elimina todos los registros de esa semana.
+ * Protegidas por verifyFirebaseToken + verifyOwnerAdminOrGabaim (admin o gabaim).
  */
 
 const express = require('express');
@@ -10,14 +11,17 @@ const router = express.Router();
 const meetingStructureController = require('../controllers/meetingStructure.controller');
 const meetingsController = require('../controllers/meetings.controller');
 const { verifyFirebaseToken } = require('../middlewares/verify-firebase-token');
-const { verifyOwnerAdmin } = require('../middlewares/verify-owner-admin');
+const { verifyOwnerAdminOrGabaim } = require('../middlewares/verify-owner-admin-or-gabaim');
 
-const requireOwnerAdmin = [verifyFirebaseToken, verifyOwnerAdmin];
+const requireAdminOrGabaim = [verifyFirebaseToken, verifyOwnerAdminOrGabaim];
 
-router.use(requireOwnerAdmin);
+router.use(requireAdminOrGabaim);
 
 /** Estructura: categorías → tipos → modelKey + fields (debe ir antes de /:modelKey) */
 router.get('/structure', meetingStructureController.getStructure);
+
+/** Eliminar todos los registros de una semana por period (debe ir antes de /:modelKey) */
+router.delete('/period/:period', meetingsController.deleteByPeriod);
 
 /** CRUD por modelKey */
 router.get('/:modelKey', meetingsController.list);
