@@ -17,6 +17,9 @@ const unitsRoutes = require('./src/routes/units.route');
 const rolesRoutes = require('./src/routes/roles.route');
 const meetingsRoutes = require('./src/routes/meetings.route');
 const rsvpRoutes = require('./src/routes/rsvp.route');
+const classifiedPostsRoutes = require('./src/routes/classified-posts.route');
+const classifiedCategoriesRoutes = require('./src/routes/classified-categories.route');
+const unitsForRentRoutes = require('./src/routes/units-for-rent.route');
 
 const app = express();
 
@@ -37,6 +40,9 @@ app.use('/api/units', unitsRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/meetings', meetingsRoutes);
 app.use('/api/rsvps', rsvpRoutes);
+app.use('/api/classified-posts', classifiedPostsRoutes);
+app.use('/api/classified-categories', classifiedCategoriesRoutes);
+app.use('/api/units-for-rent', unitsForRentRoutes);
 
 /** Diagnóstico de Firebase (solo en desarrollo): GET /api/debug/firebase devuelve { ok, error? } */
 if (process.env.NODE_ENV === 'development') {
