@@ -19,7 +19,8 @@ const connectDB = async () => {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
     });
-    console.log(`MongoDB Connected: ${conn.connection.host} PerennialPark`);
+    const dbName = conn.connection.name || 'unknown';
+    console.log(`MongoDB Connected: ${conn.connection.host} | DB: ${dbName}`);
     return conn;
   } catch (error) {
     console.error('Error connecting to MongoDB:', error.message);

@@ -10,7 +10,9 @@
     "deduplicate:dry": "node scripts/deduplicate.js --dry-run",
     "sync-owners": "node scripts/sync-owners-from-excel.js",
     "create-husband-users": "node scripts/create-husband-firebase-users.js",
-    "create-husband-users:dry": "node scripts/create-husband-firebase-users.js --dry-run"
+    "create-husband-users:dry": "node scripts/create-husband-firebase-users.js --dry-run",
+    "migrate-db": "node scripts/migrate-db-to-test-dev.js",
+    "migrate-db:drop": "node scripts/migrate-db-to-test-dev.js --drop"
   },
   "keywords": [],
   "author": "",
