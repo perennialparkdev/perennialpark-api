@@ -37,10 +37,10 @@ const TYPE_TO_MODEL = {
   'Shiurim|Daf Yomi|wednesday-friday': { modelKey: 'daf-yomi-meeting', fields: ['time', 'period', 'status', 'idType'] },
   'Shiurim|Additional Shiurim|wednesday-friday': { modelKey: 'additional-shiurim-meeting', fields: ['name', 'time', 'description', 'period', 'status', 'idType'] },
   // Announcements (weekDay null)
-  'Announcements|Pirkei Avis Shiur|null': { modelKey: 'pirkei-avis-shiur-announcements', fields: ['name', 'period', 'status', 'idType'] },
-  'Announcements|Mazel Tov Announcements|null': { modelKey: 'mazel-tov-announcements', fields: ['description', 'period', 'status', 'idType'] },
-  "Announcements|Avos U'Bonim Sponsor|null": { modelKey: 'avos-ubonim-sponsor-announcements', fields: ['name', 'period', 'status', 'idType'] },
-  'Announcements|Announcements Notes|null': { modelKey: 'announcements-notes-meeting', fields: ['additionalNotes', 'period', 'status', 'idType'] },
+  'Announcements|Pirkei Avis Shiur|null': { modelKey: 'pirkei-avis-shiur-announcements', fields: ['title', 'name', 'period', 'status', 'idType'] },
+  'Announcements|Mazel Tov Announcements|null': { modelKey: 'mazel-tov-announcements', fields: ['title', 'description', 'period', 'status', 'idType'] },
+  "Announcements|Avos U'Bonim Sponsor|null": { modelKey: 'avos-ubonim-sponsor-announcements', fields: ['title', 'name', 'period', 'status', 'idType'] },
+  'Announcements|Announcements Notes|null': { modelKey: 'announcements-notes-meeting', fields: ['title', 'additionalNotes', 'period', 'status', 'idType'] },
 };
 
 /** modelKey → Mongoose Model (para CRUD) */
@@ -80,10 +80,10 @@ const FIELDS_BY_MODEL_KEY = {
   'shabbos-mevorchim-meeting': ['time', 'location', 'notes', 'period', 'status', 'idType'],
   'daf-yomi-meeting': ['time', 'period', 'status', 'idType'],
   'additional-shiurim-meeting': ['name', 'time', 'description', 'period', 'status', 'idType'],
-  'announcements-notes-meeting': ['additionalNotes', 'period', 'status', 'idType'],
-  'pirkei-avis-shiur-announcements': ['name', 'period', 'status', 'idType'],
-  'mazel-tov-announcements': ['description', 'period', 'status', 'idType'],
-  'avos-ubonim-sponsor-announcements': ['name', 'period', 'status', 'idType'],
+  'announcements-notes-meeting': ['title', 'additionalNotes', 'period', 'status', 'idType'],
+  'pirkei-avis-shiur-announcements': ['title', 'name', 'period', 'status', 'idType'],
+  'mazel-tov-announcements': ['title', 'description', 'period', 'status', 'idType'],
+  'avos-ubonim-sponsor-announcements': ['title', 'name', 'period', 'status', 'idType'],
 };
 
 function getFieldsForModelKey(modelKey) {

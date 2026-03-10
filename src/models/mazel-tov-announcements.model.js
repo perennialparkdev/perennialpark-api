@@ -8,6 +8,7 @@ const { periodField } = require('./common-fields');
 
 const mazelTovAnnouncementsMeetingSchema = new mongoose.Schema(
   {
+    title: { type: String, default: 'Mazel Tov Announcements' },
     description: { type: String, default: null },
     period: periodField(),
     /** status: 1 = activo, 2 = anulado */

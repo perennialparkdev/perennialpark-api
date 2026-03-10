@@ -8,6 +8,7 @@ const { periodField } = require('./common-fields');
 
 const pirkeiAvisShiurMeetingSchema = new mongoose.Schema(
   {
+    title: { type: String, default: 'Pirkei Avis Shiur' },
     name: { type: String, default: null },
     period: periodField(),
     /** status: 1 = activo, 2 = anulado */
