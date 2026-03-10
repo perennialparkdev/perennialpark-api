@@ -39,9 +39,11 @@ Incluye:
 
 Para que API y frontend coincidan, **`period`** se define así:
 
-- **Formato:** `YYYY-MM-DD` (fecha en ISO).
+- **Formato:** `YYYY-MM-DD` (año-mes-día separado por guión; fecha en ISO).
 - **Significado:** Fecha del **lunes** de la semana. La semana va de **lunes a domingo**.
 - **Ejemplo:** `2026-03-02` = semana del lunes 2 de marzo al domingo 8 de marzo de 2026.
+
+En backend, el campo `period` está formalizado en todos los modelos de meetings y announcements mediante la definición compartida en `src/models/common-fields.js` (`periodField()`), que valida que el valor sea `null`, vacío o una cadena en formato `YYYY-MM-DD`.
 
 Todas las operaciones que usen semana (list con filtro `period`, create/update con `period`, delete por semana) deben usar el mismo valor para una misma semana (el lunes en `YYYY-MM-DD`).
 
