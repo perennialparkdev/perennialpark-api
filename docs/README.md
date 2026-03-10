@@ -13,6 +13,8 @@
 | [**ROLES.md**](./ROLES.md) | API de **Roles**: CRUD de roles (crear, listar, obtener, editar, activar, anular). Respuestas en inglés. Solo accesible por owners con idRol administrador. |
 | [**MEETINGS-STRUCTURE.md**](./MEETINGS-STRUCTURE.md) | Estructura **Categories, Types y reuniones/anuncios**: cómo funcionan los modelos Category, Type, Meeting y modelos especiales (ShabbosMevorchimMeeting, DafYomiMeeting, etc.), a qué Type pertenece cada uno y a qué Category cada Type. Incluye script de seed. |
 | [**RSVPS.md**](./RSVPS.md) | API de **RSVP**: CRUD de registros de citas (create, list por rango de fecha, getById, update). Delete solo para owners con rol administrador. Incluye totales para Coming (howManyMen + guests) y array checks. |
+| [**CLASSIFIEDS.md**](./CLASSIFIEDS.md) | API de **Classifieds**: CRUD de avisos/clasificados (classified_posts). Categorías en classified_categories. Requiere owner autenticado (cualquier rol). Campos: title, category, description, price, contact_info, visible_to_other_colonies. |
+| [**UNITS_FOR_RENT.md**](./UNITS_FOR_RENT.md) | API de **Units for Rent**: CRUD de unidades en alquiler (units_for_rent). Requiere owner autenticado (cualquier rol). Campos: startDate, endDate, notes, only_my_colony; owner y unidad enlazada en respuesta. |
 
 ---
 
@@ -48,6 +50,17 @@
 - **Protegida (solo admin):** delete (DELETE). Requiere Firebase Token + owner con idRol administrador.
 - **List:** filtra por `createdAt` entre from y to; devuelve comings, maybes y totales (totalHowManyMenComing, totalGuestsComing, total). Populate de owner y unit; incluye array checks.
 - **List by unit:** `GET /api/rsvps/unit/:unitId?from=...&to=...` — registros RSVP de una unidad en un rango de fechas; respuesta array plano con populate. Ver [RSVPS.md](./RSVPS.md).
+
+### Classifieds (`/api/classified-posts`)
+
+- **Todas protegidas** por Firebase Token + **owner (cualquier rol)**.
+- **Categorías:** `GET /api/classified-categories` — listar categorías (orden por name) para el selector al crear/editar posts.
+- **CRUD posts:** create (title requerido, category opcional y validada), list (filtros category y visible_to_other_colonies), getById, update, delete. Respuestas con `category` poblado (name). Ver [CLASSIFIEDS.md](./CLASSIFIEDS.md).
+
+### Units for Rent (`/api/units-for-rent`)
+
+- **Todas protegidas** por Firebase Token + **owner (cualquier rol)**.
+- **CRUD:** create (startDate, endDate, notes, only_my_colony; owner asignado desde token), list (filtro only_my_colony), getById, update, delete. Respuestas con `owner` (name, email, phone, unit). Ver [UNITS_FOR_RENT.md](./UNITS_FOR_RENT.md).
 
 ---
 
