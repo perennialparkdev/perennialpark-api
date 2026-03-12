@@ -1,9 +1,9 @@
 /**
  * @fileoverview Rutas de meeting-structure y CRUD por modelKey.
  * GET /structure devuelve categorías con tipos, modelKey y campos.
+ * GET /daily-schedule: cualquier owner (todos los roles). Resto: admin o gabaim.
  * CRUD bajo /:modelKey (list, create) y /:modelKey/:id (get, update, activate, anular).
  * DELETE /period/:period elimina todos los registros de esa semana.
- * Protegidas por verifyFirebaseToken + verifyOwnerAdminOrGabaim (admin o gabaim).
  */
 
 const express = require('express');
@@ -12,17 +12,19 @@ const meetingStructureController = require('../controllers/meetingStructure.cont
 const meetingsController = require('../controllers/meetings.controller');
 const dailyScheduleController = require('../controllers/dailySchedule.controller');
 const { verifyFirebaseToken } = require('../middlewares/verify-firebase-token');
+const { verifyOwner } = require('../middlewares/verify-owner');
 const { verifyOwnerAdminOrGabaim } = require('../middlewares/verify-owner-admin-or-gabaim');
 
-const requireAdminOrGabaim = [verifyFirebaseToken, verifyOwnerAdminOrGabaim];
+router.use(verifyFirebaseToken);
 
-router.use(requireAdminOrGabaim);
+/** Daily schedule: cualquier owner (todos los roles) */
+router.get('/daily-schedule', verifyOwner, dailyScheduleController.getDailySchedule);
+
+/** Resto de rutas: solo admin o gabaim */
+router.use(verifyOwnerAdminOrGabaim);
 
 /** Estructura: categorías → tipos → modelKey + fields (debe ir antes de /:modelKey) */
 router.get('/structure', meetingStructureController.getStructure);
-
-/** Estructura diaria agregada para la semana actual (según día actual o query.date) */
-router.get('/daily-schedule', dailyScheduleController.getDailySchedule);
 
 /** Eliminar todos los registros de una semana por period (debe ir antes de /:modelKey) */
 router.delete('/period/:period', meetingsController.deleteByPeriod);
