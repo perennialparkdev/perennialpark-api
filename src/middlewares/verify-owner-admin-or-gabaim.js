@@ -1,5 +1,5 @@
 /**
- * @fileoverview Verifica que el usuario sea un owner (husband o wife) con rol admin o gabaim.
+ * @fileoverview Verifica que el usuario sea un owner (husband o wife) con rol admin, gabaim o board member.
  * Usado en rutas de meetings (Manage Davening Times). Debe usarse después de verifyFirebaseToken.
  */
 
@@ -8,7 +8,8 @@ const OwnerWifeUser = require('../models/owner-wife-user.model');
 
 const ADMIN_ROL_ID = process.env.ADMIN_ROL_ID || '69a4797d16285f80b89cb60b';
 const GABAIM_ROL_ID = process.env.GABAIM_ROL_ID || '69a4fe4c1c49fa661fecae13';
-const ALLOWED_ROL_IDS = [ADMIN_ROL_ID, GABAIM_ROL_ID];
+const BOARD_MEMBER_ROL_ID = process.env.BOARD_MEMBER_ROL_ID || '69a4fe711c49fa661fecae14';
+const ALLOWED_ROL_IDS = [ADMIN_ROL_ID, GABAIM_ROL_ID, ...(BOARD_MEMBER_ROL_ID ? [BOARD_MEMBER_ROL_ID] : [])];
 
 const verifyOwnerAdminOrGabaim = async (req, res, next) => {
   try {
@@ -37,7 +38,7 @@ const verifyOwnerAdminOrGabaim = async (req, res, next) => {
     if (!allowed) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Only administrators or gabaim can perform this action.',
+        message: 'Access denied. Only administrators, gabaim or board members can perform this action.',
       });
     }
 
@@ -52,4 +53,4 @@ const verifyOwnerAdminOrGabaim = async (req, res, next) => {
   }
 };
 
-module.exports = { verifyOwnerAdminOrGabaim, ADMIN_ROL_ID, GABAIM_ROL_ID };
+module.exports = { verifyOwnerAdminOrGabaim, ADMIN_ROL_ID, GABAIM_ROL_ID, BOARD_MEMBER_ROL_ID };
