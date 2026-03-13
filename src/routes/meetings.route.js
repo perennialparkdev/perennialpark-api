@@ -1,7 +1,7 @@
 /**
  * @fileoverview Rutas de meeting-structure y CRUD por modelKey.
  * GET /structure devuelve categorías con tipos, modelKey y campos.
- * GET /daily-schedule: cualquier owner (todos los roles). Resto: admin o gabaim.
+ * GET /daily-schedule: cualquier owner (todos los roles). Resto: admin, gabaim o board member.
  * CRUD bajo /:modelKey (list, create) y /:modelKey/:id (get, update, activate, anular).
  * DELETE /period/:period elimina todos los registros de esa semana.
  */
@@ -20,7 +20,7 @@ router.use(verifyFirebaseToken);
 /** Daily schedule: cualquier owner (todos los roles) */
 router.get('/daily-schedule', verifyOwner, dailyScheduleController.getDailySchedule);
 
-/** Resto de rutas: solo admin o gabaim */
+/** Resto de rutas: admin, gabaim o board member */
 router.use(verifyOwnerAdminOrGabaim);
 
 /** Estructura: categorías → tipos → modelKey + fields (debe ir antes de /:modelKey) */

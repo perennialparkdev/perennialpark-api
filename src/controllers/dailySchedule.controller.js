@@ -524,12 +524,23 @@ async function findAnnouncementsForWeek(weekStart, weekEnd) {
     })
       .sort({ createdAt: 1 })
       .lean();
-    return docs.map((doc) => ({
-      ...doc,
-      sourceModel: modelKey,
-      weekSpanStart: weekStart,
-      weekSpanEnd: weekEnd,
-    }));
+    return docs.map((doc) => {
+      const base = {
+        ...doc,
+        sourceModel: modelKey,
+        weekSpanStart: weekStart,
+        weekSpanEnd: weekEnd,
+      };
+
+      if (modelKey === 'announcements-notes-meeting') {
+        return {
+          ...base,
+          name: doc.name || doc.additionalNotes || null,
+        };
+      }
+
+      return base;
+    });
   });
 
   const results = await Promise.all(promises);
